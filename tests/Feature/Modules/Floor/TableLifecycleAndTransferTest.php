@@ -76,3 +76,41 @@ it('transitions dining tables cleanly through billing, dirty, and available stat
     $clean = $update->execute($table->id, TableState::Available);
     expect($clean->state)->toBe(TableState::Available);
 });
+
+it('atomically transfers an open order tab from occupied Table A to available Table B and rejects transferring to an occupied Table C', function (): void {
+    Event::fake([TableOccupancyChanged::class]);
+
+    $branch = Branch::create(['code' => 'DTF', 'name' => 'Downtown Flagship']);
+    $zone = FloorZone::create(['branch_id' => $branch->id, 'name' => 'Main', 'sort_order' => 1]);
+    $tableA = DiningTable::create(['branch_id' => $branch->id, 'floor_zone_id' => $zone->id, 'code' => 'A1', 'capacity' => 4, 'state' => TableState::Available]);
+    $tableB = DiningTable::create(['branch_id' => $branch->id, 'floor_zone_id' => $zone->id, 'code' => 'B1', 'capacity' => 4, 'state' => TableState::Available]);
+    $tableC = DiningTable::create(['branch_id' => $branch->id, 'floor_zone_id' => $zone->id, 'code' => 'C1', 'capacity' => 4, 'state' => TableState::Occupied]);
+
+    $waiter = User::factory()->create(['branch_id' => $branch->id, 'role' => StaffRole::Waiter]);
+    $shift = app(\App\Modules\Shifts\Actions\OpenShiftAction::class)->execute($branch->id, $waiter->id, 20000);
+
+    $order = app(\App\Modules\Orders\Actions\OpenOrderTabAction::class)->execute(
+        branchId: $branch->id,
+        shiftId: $shift->id,
+        serverId: $waiter->id,
+        serviceType: \App\Modules\Orders\Enums\ServiceType::DineIn,
+        tableId: $tableA->id,
+        guestCount: 4,
+    );
+
+    expect(fn () => app(\App\Modules\Floor\Actions\TransferTableAction::class)->execute($order->id, $tableC->id))
+        ->toThrow(TableNotAvailableException::class);
+
+    expect($order->refresh()->table_id)->toBe($tableA->id)
+        ->and($tableA->refresh()->state)->toBe(TableState::Occupied);
+
+    $transferred = app(\App\Modules\Floor\Actions\TransferTableAction::class)->execute($order->id, $tableB->id, markSourceDirty: true);
+
+    expect($transferred->id)->toBe($tableB->id)
+        ->and($transferred->state)->toBe(TableState::Occupied)
+        ->and($transferred->current_guest_count)->toBe(4)
+        ->and($tableA->refresh()->state)->toBe(TableState::Dirty)
+        ->and($order->refresh()->table_id)->toBe($tableB->id);
+
+    Event::assertDispatched(TableOccupancyChanged::class);
+});
