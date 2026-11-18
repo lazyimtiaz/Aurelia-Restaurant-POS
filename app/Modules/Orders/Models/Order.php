@@ -6,6 +6,7 @@ namespace App\Modules\Orders\Models;
 
 use App\Models\User;
 use App\Modules\Floor\Models\DiningTable;
+use App\Modules\Kitchen\Models\KitchenTicket;
 use App\Modules\Orders\Enums\OrderState;
 use App\Modules\Orders\Enums\ServiceType;
 use App\Modules\Restaurant\Models\Branch;
@@ -79,5 +80,10 @@ class Order extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function kitchenTickets(): HasMany
+    {
+        return $this->hasMany(KitchenTicket::class);
     }
 }

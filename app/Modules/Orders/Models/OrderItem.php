@@ -6,6 +6,7 @@ namespace App\Modules\Orders\Models;
 
 use App\Modules\Kitchen\Enums\ItemPrepState;
 use App\Modules\Kitchen\Enums\VoidReason;
+use App\Modules\Kitchen\Models\KitchenTicket;
 use App\Modules\Menu\Enums\PrepStation;
 use App\Modules\Menu\Models\MenuItemVariant;
 use Illuminate\Database\Eloquent\Model;
@@ -53,6 +54,11 @@ class OrderItem extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function kitchenTicket(): BelongsTo
+    {
+        return $this->belongsTo(KitchenTicket::class, 'kitchen_ticket_id');
     }
 
     public function variant(): BelongsTo
