@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Orders\Models;
 
 use App\Models\User;
+use App\Modules\Billing\Models\BillSplit;
+use App\Modules\Billing\Models\PaymentTransaction;
 use App\Modules\Floor\Models\DiningTable;
 use App\Modules\Kitchen\Models\KitchenTicket;
 use App\Modules\Orders\Enums\OrderState;
@@ -85,5 +87,15 @@ class Order extends Model
     public function kitchenTickets(): HasMany
     {
         return $this->hasMany(KitchenTicket::class);
+    }
+
+    public function billSplits(): HasMany
+    {
+        return $this->hasMany(BillSplit::class)->orderBy('sequence_number');
+    }
+
+    public function paymentTransactions(): HasMany
+    {
+        return $this->hasMany(PaymentTransaction::class);
     }
 }
