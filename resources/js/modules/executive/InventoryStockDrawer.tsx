@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, PackagePlus, Trash2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,7 @@ export function InventoryStockDrawer({
     inventoryBranchId,
     branchLabel,
 }: InventoryStockDrawerProps) {
+    const { errors } = usePage<{ errors?: Record<string, string> }>().props;
     const [activeMode, setActiveMode] = useState<DrawerMode | null>(null);
     const [selectedStock, setSelectedStock] = useState<BranchStockRowData | null>(null);
     const [quantity, setQuantity] = useState('500');
@@ -299,6 +300,11 @@ export function InventoryStockDrawer({
 
                             <form onSubmit={handleSubmit} className="mt-5 flex flex-1 flex-col justify-between space-y-4">
                                 <div className="space-y-4">
+                                    {errors?.inventory && (
+                                        <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-700">
+                                            {errors.inventory}
+                                        </div>
+                                    )}
                                     <div>
                                         <label className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
                                             Quantity ({selectedStock.unit_label})

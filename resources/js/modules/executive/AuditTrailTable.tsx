@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Filter, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,16 +17,24 @@ export function AuditTrailTable({ initialLogs, eventTypes, branchId }: AuditTrai
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(false);
     const [expandedId, setExpandedId] = useState<number | null>(null);
+    const abortRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
         setLogs(initialLogs);
     }, [initialLogs]);
+
+    useEffect(() => {
+        return () => abortRef.current?.abort();
+    }, []);
 
     const applyFilters = async (
         nextEventType: string,
         nextCritical: boolean,
         nextSearch: string,
     ) => {
+        abortRef.current?.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
         setLoading(true);
         try {
             const params = new URLSearchParams();
@@ -43,13 +51,21 @@ export function AuditTrailTable({ initialLogs, eventTypes, branchId }: AuditTrai
 
             const response = await fetch(`/audit-logs?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
+                signal: controller.signal,
             });
             if (response.ok) {
                 const payload = (await response.json()) as { logs: AuditLogRowData[] };
                 setLogs(payload.logs);
             }
+        } catch (err) {
+            if (err instanceof DOMException && err.name === 'AbortError') {
+                return;
+            }
+            throw err;
         } finally {
-            setLoading(false);
+            if (abortRef.current === controller) {
+                setLoading(false);
+            }
         }
     };
 
