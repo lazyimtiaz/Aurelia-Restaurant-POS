@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\EvaluatorDemoController;
+use App\Http\Controllers\ExecutiveDashboardController;
 use App\Http\Controllers\FloorController;
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\KdsController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ShiftReconciliationController;
@@ -67,3 +70,12 @@ Route::prefix('kds')->name('kds.')->group(function (): void {
 });
 
 Route::get('/demo/split-screen', [SplitScreenDemoController::class, 'index'])->name('demo.split-screen');
+
+Route::get('/executive', ExecutiveDashboardController::class)->name('executive.index');
+
+Route::prefix('inventory')->name('inventory.')->group(function (): void {
+    Route::post('/receive', [InventoryController::class, 'receive'])->name('receive');
+    Route::post('/wastage', [InventoryController::class, 'wastage'])->name('wastage');
+});
+
+Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');

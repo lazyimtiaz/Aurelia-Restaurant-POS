@@ -25,6 +25,17 @@ enum StaffRole: string
         };
     }
 
+    public function canAccessExecutiveWorkspace(): bool
+    {
+        return match ($this) {
+            self::EnterpriseSystemAdmin,
+            self::RestaurantOwner,
+            self::BranchManager,
+            self::InventoryManager => true,
+            default => false,
+        };
+    }
+
     public function label(): string
     {
         return match ($this) {

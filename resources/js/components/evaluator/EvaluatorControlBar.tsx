@@ -119,6 +119,14 @@ export function EvaluatorControlBar() {
                         { href: '/pos', label: 'Cashier POS' },
                         { href: '/kds', label: 'Kitchen KDS' },
                         { href: '/demo/split-screen', label: 'Split-Screen Demo' },
+                        ...([
+                            'enterprise_system_admin',
+                            'restaurant_owner',
+                            'branch_manager',
+                            'inventory_manager',
+                        ].includes(evaluator.activeUser.role)
+                            ? [{ href: '/executive', label: 'Executive Analytics' }]
+                            : []),
                     ].map((nav) => (
                         <Link
                             key={nav.href}
