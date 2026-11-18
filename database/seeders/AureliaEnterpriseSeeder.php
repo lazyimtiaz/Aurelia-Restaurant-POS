@@ -9,6 +9,10 @@ use App\Modules\Floor\Enums\TableState;
 use App\Modules\Floor\Models\DiningTable;
 use App\Modules\Floor\Models\FloorZone;
 use App\Modules\Identity\Enums\StaffRole;
+use App\Modules\Inventory\Enums\MeasurementUnit;
+use App\Modules\Inventory\Models\BranchIngredientStock;
+use App\Modules\Inventory\Models\Ingredient;
+use App\Modules\Inventory\Models\RecipeItem;
 use App\Modules\Menu\Enums\PrepStation;
 use App\Modules\Menu\Models\BranchMenuOverride;
 use App\Modules\Menu\Models\MenuCategory;
@@ -37,6 +41,7 @@ class AureliaEnterpriseSeeder extends Seeder
         $this->seedStaff($branches);
         $variants = $this->seedCatalog();
         $this->seedBranchOverrides($branches, $variants);
+        $this->seedInventoryAndRecipes($branches, $variants);
         $this->seedFloorZonesAndTables($branches);
         $this->seedOpenShifts($branches);
         $this->seedDemoLiveService($branches, $variants);
@@ -483,5 +488,141 @@ class AureliaEnterpriseSeeder extends Seeder
         }
 
         app(FireOrderRoundAction::class)->execute($order->id, $waiter->id);
+    }
+
+    /**
+     * @param  array<string, Branch>  $branches
+     * @param  array<string, MenuItemVariant>  $variants
+     */
+    private function seedInventoryAndRecipes(array $branches, array $variants): void
+    {
+        $ingredientSpecs = [
+            'ING-BURRATA' => [
+                'name' => 'Pugliese Burrata Cheese',
+                'unit' => MeasurementUnit::Grams,
+                'default_unit_cost_cents' => 2,
+                'initial_qty' => 6000,
+                'auto_86_threshold' => 450,
+            ],
+            'ING-TOMATO' => [
+                'name' => 'Heirloom Tomatoes',
+                'unit' => MeasurementUnit::Grams,
+                'default_unit_cost_cents' => 1,
+                'initial_qty' => 8000,
+                'auto_86_threshold' => 600,
+            ],
+            'ING-WAGYU' => [
+                'name' => 'Dry-Aged Wagyu Chuck',
+                'unit' => MeasurementUnit::Grams,
+                'default_unit_cost_cents' => 3,
+                'initial_qty' => 12000,
+                'auto_86_threshold' => 500,
+            ],
+            'ING-BRIOCHE' => [
+                'name' => 'Artisan Brioche Bun',
+                'unit' => MeasurementUnit::Units,
+                'default_unit_cost_cents' => 110,
+                'initial_qty' => 120,
+                'auto_86_threshold' => 6,
+            ],
+            'ING-RIBEYE' => [
+                'name' => 'Prime Bone-In Ribeye',
+                'unit' => MeasurementUnit::Grams,
+                'default_unit_cost_cents' => 4,
+                'initial_qty' => 15000,
+                'auto_86_threshold' => 900,
+            ],
+            'ING-LOBSTER' => [
+                'name' => 'Maine Lobster Tail',
+                'unit' => MeasurementUnit::Units,
+                'default_unit_cost_cents' => 1850,
+                'initial_qty' => 24,
+                'auto_86_threshold' => 2,
+            ],
+            'ING-VALRHONA' => [
+                'name' => 'Valrhona 70% Couverture',
+                'unit' => MeasurementUnit::Grams,
+                'default_unit_cost_cents' => 3,
+                'initial_qty' => 4800,
+                'auto_86_threshold' => 360,
+            ],
+            'ING-YUZU' => [
+                'name' => 'Yuzu Botanical Concentrate',
+                'unit' => MeasurementUnit::Milliliters,
+                'default_unit_cost_cents' => 1,
+                'initial_qty' => 18000,
+                'auto_86_threshold' => 1000,
+            ],
+        ];
+
+        $ingredients = [];
+        foreach ($ingredientSpecs as $code => $spec) {
+            $ingredients[$code] = Ingredient::query()->updateOrCreate(
+                ['code' => $code],
+                [
+                    'name' => $spec['name'],
+                    'unit' => $spec['unit'],
+                    'default_unit_cost_cents' => $spec['default_unit_cost_cents'],
+                    'is_active' => true,
+                ],
+            );
+        }
+
+        $recipesBySku = [
+            'SAL-BUR-REG' => ['ING-BURRATA' => 150, 'ING-TOMATO' => 200],
+            'GRL-WAG-SGL' => ['ING-WAGYU' => 150, 'ING-BRIOCHE' => 1],
+            'GRL-WAG-DBL' => ['ING-WAGYU' => 250, 'ING-BRIOCHE' => 1],
+            'GRL-RIB-300' => ['ING-RIBEYE' => 300],
+            'GRL-RIB-450' => ['ING-RIBEYE' => 450],
+            'GRL-LOB-STD' => ['ING-LOBSTER' => 1],
+            'PAS-TOR-IND' => ['ING-VALRHONA' => 120],
+            'BAR-YUZ-GLS' => ['ING-YUZU' => 150],
+            'BAR-YUZ-CAR' => ['ING-YUZU' => 550],
+        ];
+
+        foreach ($recipesBySku as $sku => $items) {
+            $variant = $variants[$sku] ?? null;
+            if ($variant === null) {
+                continue;
+            }
+
+            foreach ($items as $ingredientCode => $qtyRequired) {
+                $ingredient = $ingredients[$ingredientCode] ?? null;
+                if ($ingredient === null) {
+                    continue;
+                }
+
+                RecipeItem::query()->updateOrCreate(
+                    [
+                        'menu_item_variant_id' => $variant->id,
+                        'ingredient_id' => $ingredient->id,
+                    ],
+                    [
+                        'quantity_required' => $qtyRequired,
+                    ],
+                );
+            }
+        }
+
+        foreach ($branches as $branchCode => $branch) {
+            foreach ($ingredientSpecs as $code => $spec) {
+                $ingredient = $ingredients[$code];
+                $initialQty = ($branchCode === 'DTF' && $code === 'ING-LOBSTER')
+                    ? 0
+                    : $spec['initial_qty'];
+
+                BranchIngredientStock::query()->firstOrCreate(
+                    [
+                        'branch_id' => $branch->id,
+                        'ingredient_id' => $ingredient->id,
+                    ],
+                    [
+                        'quantity_on_hand' => $initialQty,
+                        'auto_86_threshold' => $spec['auto_86_threshold'],
+                        'unit_cost_cents' => $spec['default_unit_cost_cents'],
+                    ],
+                );
+            }
+        }
     }
 }
