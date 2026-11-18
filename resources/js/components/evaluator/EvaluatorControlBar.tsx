@@ -16,10 +16,12 @@ import type { SharedPageProps, StaffRoleValue } from '@/types/evaluator';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { formatCents } from '@/lib/money';
+import { ShiftReconciliationModal } from '@/pages/Shifts/ShiftReconciliationModal';
 
 export function EvaluatorControlBar() {
     const { evaluator } = usePage<SharedPageProps>().props;
     const [collapsed, setCollapsed] = useState(false);
+    const [shiftModalOpen, setShiftModalOpen] = useState(false);
 
     const handleRoleChange = (role: StaffRoleValue) => {
         router.post('/evaluator/switch-role', { role }, { preserveScroll: true });
@@ -67,14 +69,21 @@ export function EvaluatorControlBar() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {evaluator.activeShift ? (
-                            <Badge variant="success" className="border-emerald-500/30 bg-emerald-500/15 text-emerald-300">
-                                <Wallet className="h-3 w-3" />
-                                Shift Open · {formatCents(evaluator.activeShift.expected_cash_cents)}
-                            </Badge>
-                        ) : (
-                            <Badge variant="destructive">No Open Shift</Badge>
-                        )}
+                        <button
+                            type="button"
+                            onClick={() => setShiftModalOpen(true)}
+                            className="cursor-pointer"
+                            title="Open Blind Shift & Cash Drawer Reconciliation"
+                        >
+                            {evaluator.activeShift ? (
+                                <Badge variant="success" className="border-emerald-500/30 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
+                                    <Wallet className="h-3 w-3" />
+                                    Shift Open · {formatCents(evaluator.activeShift.expected_cash_cents)}
+                                </Badge>
+                            ) : (
+                                <Badge variant="destructive">No Open Shift · Open Drawer</Badge>
+                            )}
+                        </button>
 
                         <Link
                             href="/demo/split-screen"
@@ -194,6 +203,11 @@ export function EvaluatorControlBar() {
                     )}
                 </AnimatePresence>
             </div>
+
+            <ShiftReconciliationModal
+                open={shiftModalOpen}
+                onClose={() => setShiftModalOpen(false)}
+            />
         </header>
     );
 }

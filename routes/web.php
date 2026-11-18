@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\EvaluatorDemoController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\KdsController;
 use App\Http\Controllers\PosController;
+use App\Http\Controllers\ShiftReconciliationController;
 use App\Http\Controllers\SplitScreenDemoController;
 use App\Http\Middleware\RequireOpenShiftMiddleware;
 use Illuminate\Support\Facades\Route;
@@ -37,6 +39,25 @@ Route::prefix('pos')->name('pos.')->group(function (): void {
         Route::post('/orders/{orderId}/discount', [PosController::class, 'applyDiscount'])->name('orders.discount');
         Route::post('/order-items/{itemId}/void', [PosController::class, 'voidItem'])->name('orders.items.void');
     });
+});
+
+Route::prefix('billing')->name('billing.')->group(function (): void {
+    Route::get('/splits/{billSplitId}/receipt', [BillingController::class, 'showReceipt'])->name('splits.receipt');
+    Route::post('/orders/{orderId}/request-bill', [BillingController::class, 'requestBill'])->name('orders.request-bill');
+    Route::post('/orders/{orderId}/reopen', [BillingController::class, 'reopenOrder'])->name('orders.reopen');
+    Route::post('/orders/{orderId}/split', [BillingController::class, 'splitOrder'])->name('orders.split');
+
+    Route::middleware(RequireOpenShiftMiddleware::class)->group(function (): void {
+        Route::post('/splits/{billSplitId}/pay', [BillingController::class, 'paySplit'])->name('splits.pay');
+        Route::post('/payments/{paymentId}/refund', [BillingController::class, 'refundPayment'])->name('payments.refund');
+    });
+});
+
+Route::prefix('shifts')->name('shifts.')->group(function (): void {
+    Route::get('/', [ShiftReconciliationController::class, 'index'])->name('index');
+    Route::post('/open', [ShiftReconciliationController::class, 'openShift'])->name('open');
+    Route::post('/{shiftId}/close', [ShiftReconciliationController::class, 'closeShift'])->name('close');
+    Route::post('/{shiftId}/approve-variance', [ShiftReconciliationController::class, 'approveVariance'])->name('approve-variance');
 });
 
 Route::prefix('kds')->name('kds.')->group(function (): void {

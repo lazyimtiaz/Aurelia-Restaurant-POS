@@ -1,3 +1,5 @@
+import type { BillSplitData } from '@/types/billing';
+
 export type TableStateValue = 'available' | 'reserved' | 'occupied' | 'billing' | 'dirty';
 
 export interface TableActiveOrderSummary {
@@ -74,8 +76,10 @@ export interface ActiveOrderData {
     tax_cents: number;
     total_cents: number;
     opened_at: string;
+    closed_at?: string | null;
     kitchen_tickets: OrderTicketSummaryData[];
     items: OrderItemData[];
+    bill_splits?: BillSplitData[];
 }
 
 export interface KdsTicketItemData {

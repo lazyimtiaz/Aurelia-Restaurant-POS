@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatCents } from '@/lib/money';
@@ -22,6 +22,16 @@ export function ModifierSheet({ item, onClose, onAdd }: ModifierSheetProps) {
     const [quantity, setQuantity] = useState(1);
     const [seatNumber, setSeatNumber] = useState<number>(1);
     const [notes, setNotes] = useState('');
+
+    useEffect(() => {
+        if (item) {
+            const firstAvail = item.variants.find((v) => v.is_available) ?? item.variants[0] ?? null;
+            setSelectedVariantId(firstAvail?.id ?? null);
+            setSelectedMods([]);
+            setQuantity(1);
+            setNotes('');
+        }
+    }, [item?.id]);
 
     if (!item) {
         return null;

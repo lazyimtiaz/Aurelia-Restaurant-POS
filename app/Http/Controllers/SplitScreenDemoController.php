@@ -39,6 +39,7 @@ final class SplitScreenDemoController extends Controller
             'catalog' => $getCatalog->execute($branchId)->values()->all(),
             'zones' => $getFloor->execute($branchId),
             'activeOrders' => $getActiveOrders->execute($branchId),
+            'recentPaidOrders' => $getActiveOrders->recentPaid($branchId),
             'tickets' => $getActiveTickets->execute($branchId)->values()->all(),
             'stations' => $stations,
         ]);

@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
-import { Plus, ShoppingBag, UtensilsCrossed } from 'lucide-react';
+import { Plus, Receipt, RotateCcw, ShoppingBag, UtensilsCrossed } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useBranchEcho } from '@/hooks/useBranchEcho';
 import { formatCents } from '@/lib/money';
+import { PaymentSettlementModal } from '@/modules/billing/PaymentSettlementModal';
+import { RefundModal } from '@/modules/billing/RefundModal';
+import { SplitBillDrawer } from '@/modules/billing/SplitBillDrawer';
+import { ThermalReceiptDialog } from '@/modules/billing/ThermalReceiptDialog';
 import { ManagerPinModal } from '@/modules/pos/ManagerPinModal';
 import { ModifierSheet } from '@/modules/pos/ModifierSheet';
 import { MultiRoundCart } from '@/modules/pos/MultiRoundCart';
 import { ProductGrid } from '@/modules/pos/ProductGrid';
 import { TableTransferDialog } from '@/modules/pos/TableTransferDialog';
+import type { PaymentTransactionData } from '@/types/billing';
 import type { MenuCategoryData, MenuItemData, SharedPageProps } from '@/types/evaluator';
 import type { ActiveOrderData, FloorZoneData, OrderItemData } from '@/types/pos';
 
@@ -17,6 +22,7 @@ interface PosPanelProps {
     catalog: MenuCategoryData[];
     zones: FloorZoneData[];
     activeOrders: ActiveOrderData[];
+    recentPaidOrders?: ActiveOrderData[];
     initialOrderId?: number | null;
     compact?: boolean;
 }
@@ -25,6 +31,7 @@ export function PosPanel({
     catalog,
     zones,
     activeOrders,
+    recentPaidOrders = [],
     initialOrderId = null,
     compact = false,
 }: PosPanelProps) {
@@ -40,6 +47,10 @@ export function PosPanel({
     >(null);
     const [pinError, setPinError] = useState<string | null>(null);
     const [transferOpen, setTransferOpen] = useState(false);
+    const [splitDrawerOpen, setSplitDrawerOpen] = useState(false);
+    const [payModalOpen, setPayModalOpen] = useState(false);
+    const [receiptSplitId, setReceiptSplitId] = useState<number | null>(null);
+    const [refundPayment, setRefundPayment] = useState<PaymentTransactionData | null>(null);
     const [selectedTableId, setSelectedTableId] = useState<number>(
         () => zones.flatMap((z) => z.tables).find((t) => t.state === 'available')?.id ?? 0,
     );
@@ -56,7 +67,7 @@ export function PosPanel({
     }, [flash?.activeOrderId, activeOrders, selectedOrderId]);
 
     useBranchEcho(evaluator.activeBranch.id, ['pos'], () => {
-        router.reload({ only: ['catalog', 'zones', 'activeOrders'] });
+        router.reload({ only: ['catalog', 'zones', 'activeOrders', 'recentPaidOrders'] });
     });
 
     const selectedOrder = activeOrders.find((o) => o.id === selectedOrderId) ?? activeOrders[0] ?? null;
@@ -241,9 +252,102 @@ export function PosPanel({
                         }}
                         onApplyDiscount={handleApplyDiscount}
                         onOpenTransfer={() => setTransferOpen(true)}
+                        onRequestBill={(orderId) =>
+                            router.post(
+                                `/billing/orders/${orderId}/request-bill`,
+                                {},
+                                {
+                                    preserveScroll: true,
+                                    onSuccess: () => setPayModalOpen(true),
+                                },
+                            )
+                        }
+                        onReopenOrder={(orderId) =>
+                            router.post(`/billing/orders/${orderId}/reopen`, {}, { preserveScroll: true })
+                        }
+                        onOpenSplitDrawer={() => setSplitDrawerOpen(true)}
+                        onOpenPayModal={() => setPayModalOpen(true)}
                     />
                 </div>
             </div>
+
+            {recentPaidOrders.length > 0 && (
+                <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground uppercase">
+                        <Receipt className="h-3.5 w-3.5" /> Recent Receipt History &amp; PIN Refunds
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {recentPaidOrders.slice(0, 6).map((paidOrder) => (
+                            <div
+                                key={paidOrder.id}
+                                className="rounded-lg border border-border/80 bg-background/60 p-2.5 text-xs space-y-1.5"
+                            >
+                                <div className="flex justify-between font-mono font-semibold">
+                                    <span>{paidOrder.order_number}</span>
+                                    <span>{formatCents(paidOrder.total_cents)}</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                    {(paidOrder.bill_splits ?? []).map((split) => {
+                                        const refundableTx = split.transactions.find(
+                                            (tx) => tx.state === 'captured' && tx.refundable_remaining_cents > 0,
+                                        );
+
+                                        return (
+                                            <div key={split.id} className="flex items-center gap-1">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-6 px-2 text-[11px]"
+                                                    onClick={() => setReceiptSplitId(split.id)}
+                                                >
+                                                    <Receipt className="h-3 w-3" /> {split.label}
+                                                </Button>
+                                                {refundableTx && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-6 px-1.5 text-[11px] text-rose-600"
+                                                        onClick={() => setRefundPayment(refundableTx)}
+                                                    >
+                                                        <RotateCcw className="h-3 w-3" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            <SplitBillDrawer
+                open={splitDrawerOpen}
+                order={selectedOrder}
+                onClose={() => setSplitDrawerOpen(false)}
+                onProceedToPay={() => {
+                    setSplitDrawerOpen(false);
+                    setPayModalOpen(true);
+                }}
+            />
+
+            <PaymentSettlementModal
+                open={payModalOpen}
+                order={selectedOrder}
+                onClose={() => setPayModalOpen(false)}
+                onOpenReceipt={(billSplitId) => setReceiptSplitId(billSplitId)}
+            />
+
+            <ThermalReceiptDialog
+                billSplitId={receiptSplitId}
+                onClose={() => setReceiptSplitId(null)}
+            />
+
+            <RefundModal
+                payment={refundPayment}
+                onClose={() => setRefundPayment(null)}
+            />
 
             <ModifierSheet
                 item={modifierItem}

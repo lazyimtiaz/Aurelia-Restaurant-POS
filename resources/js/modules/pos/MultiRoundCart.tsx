@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { Flame, Percent, ShieldAlert, Trash2, Utensils } from 'lucide-react';
+import { CreditCard, Flame, Percent, RotateCcw, ShieldAlert, Split, Trash2, Utensils } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatBps, formatCents } from '@/lib/money';
@@ -12,6 +12,10 @@ interface MultiRoundCartProps {
     onRequestVoidItem: (item: OrderItemData) => void;
     onApplyDiscount: (orderId: number, discountBps: number) => void;
     onOpenTransfer: () => void;
+    onRequestBill: (orderId: number) => void;
+    onReopenOrder: (orderId: number) => void;
+    onOpenSplitDrawer: () => void;
+    onOpenPayModal: () => void;
 }
 
 export function MultiRoundCart({
@@ -21,6 +25,10 @@ export function MultiRoundCart({
     onRequestVoidItem,
     onApplyDiscount,
     onOpenTransfer,
+    onRequestBill,
+    onReopenOrder,
+    onOpenSplitDrawer,
+    onOpenPayModal,
 }: MultiRoundCartProps) {
     if (!order) {
         return (
@@ -207,15 +215,59 @@ export function MultiRoundCart({
                     </div>
                 </div>
 
-                <Button
-                    type="button"
-                    className="w-full"
-                    disabled={draftItems.length === 0}
-                    onClick={() => onFireRound(order.id)}
-                >
-                    <Flame className="h-4 w-4" />
-                    Fire Round ({draftItems.length} draft item{draftItems.length === 1 ? '' : 's'})
-                </Button>
+                <div className="space-y-2">
+                    <Button
+                        type="button"
+                        className="w-full"
+                        disabled={draftItems.length === 0 || order.state === 'billing' || order.state === 'partially_paid'}
+                        onClick={() => onFireRound(order.id)}
+                    >
+                        <Flame className="h-4 w-4" />
+                        Fire Round ({draftItems.length} draft item{draftItems.length === 1 ? '' : 's'})
+                    </Button>
+
+                    {order.state === 'open' && draftItems.length === 0 && (
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            className="w-full"
+                            onClick={() => onRequestBill(order.id)}
+                        >
+                            <CreditCard className="h-4 w-4" />
+                            Request Bill &amp; Checkout
+                        </Button>
+                    )}
+
+                    {(order.state === 'billing' || order.state === 'partially_paid') && (
+                        <div className="grid grid-cols-2 gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={order.state === 'partially_paid'}
+                                onClick={onOpenSplitDrawer}
+                            >
+                                <Split className="h-3.5 w-3.5" />
+                                Split Bill
+                            </Button>
+                            <Button type="button" onClick={onOpenPayModal}>
+                                <CreditCard className="h-3.5 w-3.5" />
+                                Collect Pay
+                            </Button>
+                            {order.state === 'billing' && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="col-span-2 text-xs"
+                                    onClick={() => onReopenOrder(order.id)}
+                                >
+                                    <RotateCcw className="h-3 w-3" />
+                                    Reopen Tab to Add Items
+                                </Button>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

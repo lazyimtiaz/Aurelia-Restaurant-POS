@@ -44,6 +44,7 @@ final class PosController extends Controller
             'catalog' => $getCatalog->execute($branchId)->values()->all(),
             'zones' => $getFloor->execute($branchId),
             'activeOrders' => $getActiveOrders->execute($branchId),
+            'recentPaidOrders' => $getActiveOrders->recentPaid($branchId),
             'initialOrderId' => $request->integer('order_id') ?: null,
         ]);
     }

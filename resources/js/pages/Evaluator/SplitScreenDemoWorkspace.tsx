@@ -11,6 +11,7 @@ interface SplitScreenDemoWorkspaceProps {
     catalog: MenuCategoryData[];
     zones: FloorZoneData[];
     activeOrders: ActiveOrderData[];
+    recentPaidOrders?: ActiveOrderData[];
     tickets: KdsTicketData[];
     stations: { value: string; label: string }[];
 }
@@ -19,6 +20,7 @@ export default function SplitScreenDemoWorkspace({
     catalog,
     zones,
     activeOrders,
+    recentPaidOrders = [],
     tickets,
     stations,
 }: SplitScreenDemoWorkspaceProps) {
@@ -49,7 +51,13 @@ export default function SplitScreenDemoWorkspace({
                         <div className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                             Left Terminal · Cashier / Server POS
                         </div>
-                        <PosPanel catalog={catalog} zones={zones} activeOrders={activeOrders} compact />
+                        <PosPanel
+                            catalog={catalog}
+                            zones={zones}
+                            activeOrders={activeOrders}
+                            recentPaidOrders={recentPaidOrders}
+                            compact
+                        />
                     </section>
 
                     <section className="space-y-2">
