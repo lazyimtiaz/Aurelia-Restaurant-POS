@@ -16,6 +16,12 @@ use App\Modules\Menu\Models\MenuItem;
 use App\Modules\Menu\Models\MenuItemVariant;
 use App\Modules\Menu\Models\ModifierGroup;
 use App\Modules\Menu\Models\ModifierOption;
+use App\Modules\Orders\Actions\AddDraftOrderItemAction;
+use App\Modules\Orders\Actions\FireOrderRoundAction;
+use App\Modules\Orders\Actions\OpenOrderTabAction;
+use App\Modules\Orders\DTOs\OrderItemInputData;
+use App\Modules\Orders\Enums\ServiceType;
+use App\Modules\Orders\Models\Order;
 use App\Modules\Restaurant\Models\Branch;
 use App\Modules\Shifts\Actions\OpenShiftAction;
 use App\Modules\Shifts\Enums\ShiftState;
@@ -33,6 +39,7 @@ class AureliaEnterpriseSeeder extends Seeder
         $this->seedBranchOverrides($branches, $variants);
         $this->seedFloorZonesAndTables($branches);
         $this->seedOpenShifts($branches);
+        $this->seedDemoLiveService($branches, $variants);
     }
 
     /**
@@ -416,5 +423,65 @@ class AureliaEnterpriseSeeder extends Seeder
                 );
             }
         }
+    }
+
+    /**
+     * @param  array<string, Branch>  $branches
+     * @param  array<string, MenuItemVariant>  $variants
+     */
+    private function seedDemoLiveService(array $branches, array $variants): void
+    {
+        $dtf = $branches['DTF'] ?? null;
+        if ($dtf === null || Order::query()->where('branch_id', $dtf->id)->exists()) {
+            return;
+        }
+
+        $shift = Shift::query()
+            ->where('branch_id', $dtf->id)
+            ->where('state', ShiftState::Open->value)
+            ->first();
+
+        $waiter = User::query()
+            ->where('branch_id', $dtf->id)
+            ->where('role', StaffRole::Waiter->value)
+            ->first();
+
+        $tableM3 = DiningTable::query()
+            ->where('branch_id', $dtf->id)
+            ->where('code', 'M3')
+            ->where('state', TableState::Available->value)
+            ->first();
+
+        if ($shift === null || $waiter === null || $tableM3 === null) {
+            return;
+        }
+
+        $order = app(OpenOrderTabAction::class)->execute(
+            branchId: $dtf->id,
+            shiftId: $shift->id,
+            serverId: $waiter->id,
+            serviceType: ServiceType::DineIn,
+            tableId: $tableM3->id,
+            guestCount: 4,
+        );
+
+        if (isset($variants['GRL-WAG-DBL'])) {
+            app(AddDraftOrderItemAction::class)->execute($order->id, new OrderItemInputData(
+                menuItemVariantId: $variants['GRL-WAG-DBL']->id,
+                quantity: 2,
+                seatNumber: 1,
+                specialInstructions: 'Extra crispy shallots',
+            ));
+        }
+
+        if (isset($variants['BAR-YUZ-GLS'])) {
+            app(AddDraftOrderItemAction::class)->execute($order->id, new OrderItemInputData(
+                menuItemVariantId: $variants['BAR-YUZ-GLS']->id,
+                quantity: 2,
+                seatNumber: 2,
+            ));
+        }
+
+        app(FireOrderRoundAction::class)->execute($order->id, $waiter->id);
     }
 }

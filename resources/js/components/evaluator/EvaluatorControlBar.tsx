@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { router, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
     AlertTriangle,
@@ -76,13 +76,13 @@ export function EvaluatorControlBar() {
                             <Badge variant="destructive">No Open Shift</Badge>
                         )}
 
-                        <span
-                            title="Split-Screen POS ↔ KDS Workspace unlocks in Phase 2"
-                            className="inline-flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-900/90 px-2.5 py-1 text-xs font-medium text-zinc-400"
+                        <Link
+                            href="/demo/split-screen"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/50 bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-300 hover:bg-amber-500/30 transition"
                         >
-                            <SplitSquareHorizontal className="h-3.5 w-3.5 text-amber-400/70" />
-                            Split-Screen (Phase 2)
-                        </span>
+                            <SplitSquareHorizontal className="h-3.5 w-3.5 text-amber-400" />
+                            Split-Screen POS ↔ KDS
+                        </Link>
 
                         <button
                             type="button"
@@ -101,6 +101,24 @@ export function EvaluatorControlBar() {
                             )}
                         </button>
                     </div>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-zinc-800/80 pt-2 text-xs">
+                    {[
+                        { href: '/', label: 'Control Center' },
+                        { href: '/floor', label: 'Floor Map' },
+                        { href: '/pos', label: 'Cashier POS' },
+                        { href: '/kds', label: 'Kitchen KDS' },
+                        { href: '/demo/split-screen', label: 'Split-Screen Demo' },
+                    ].map((nav) => (
+                        <Link
+                            key={nav.href}
+                            href={nav.href}
+                            className="rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1 font-medium text-zinc-300 hover:border-amber-500/40 hover:text-amber-300 transition"
+                        >
+                            {nav.label}
+                        </Link>
+                    ))}
                 </div>
 
                 <AnimatePresence initial={false}>

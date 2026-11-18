@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use App\Http\Controllers\EvaluatorDemoController;
 use App\Http\Controllers\FloorController;
+use App\Http\Controllers\KdsController;
 use App\Http\Controllers\PosController;
+use App\Http\Controllers\SplitScreenDemoController;
 use App\Http\Middleware\RequireOpenShiftMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -36,3 +38,11 @@ Route::prefix('pos')->name('pos.')->group(function (): void {
         Route::post('/order-items/{itemId}/void', [PosController::class, 'voidItem'])->name('orders.items.void');
     });
 });
+
+Route::prefix('kds')->name('kds.')->group(function (): void {
+    Route::get('/', [KdsController::class, 'index'])->name('index');
+    Route::post('/items/{itemId}/bump', [KdsController::class, 'bumpItem'])->name('items.bump');
+    Route::post('/tickets/{ticketId}/serve', [KdsController::class, 'serveTicket'])->name('tickets.serve');
+});
+
+Route::get('/demo/split-screen', [SplitScreenDemoController::class, 'index'])->name('demo.split-screen');
