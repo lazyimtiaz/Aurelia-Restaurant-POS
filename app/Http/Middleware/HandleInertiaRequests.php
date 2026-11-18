@@ -32,6 +32,7 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => fn (): mixed => $request->hasSession() ? $request->session()->get('success') : null,
                 'error' => fn (): mixed => $request->hasSession() ? $request->session()->get('error') : null,
+                'activeOrderId' => fn (): mixed => $request->hasSession() ? $request->session()->get('activeOrderId') : null,
             ],
         ];
     }

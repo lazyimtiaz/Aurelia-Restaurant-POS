@@ -64,6 +64,7 @@ export interface SharedPageProps {
     flash?: {
         success?: string | null;
         error?: string | null;
+        activeOrderId?: number | null;
     };
 }
 

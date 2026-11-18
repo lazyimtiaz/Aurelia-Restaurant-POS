@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\EvaluatorDemoController;
+use App\Http\Controllers\FloorController;
+use App\Http\Controllers\PosController;
+use App\Http\Middleware\RequireOpenShiftMiddleware;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [EvaluatorDemoController::class, 'index'])->name('dashboard');
@@ -12,4 +15,24 @@ Route::prefix('evaluator')->name('evaluator.')->group(function (): void {
     Route::post('/switch-branch', [EvaluatorDemoController::class, 'switchBranch'])->name('switch-branch');
     Route::post('/simulations', [EvaluatorDemoController::class, 'updateSimulations'])->name('simulations');
     Route::post('/catalog/{variantId}/toggle-86', [EvaluatorDemoController::class, 'toggleCatalogItem86'])->name('catalog.toggle-86');
+});
+
+Route::prefix('floor')->name('floor.')->group(function (): void {
+    Route::get('/', [FloorController::class, 'index'])->name('index');
+    Route::post('/tables/{tableId}/state', [FloorController::class, 'updateState'])->name('tables.state');
+    Route::post('/tables/{tableId}/service-request', [FloorController::class, 'requestService'])->name('tables.service-request');
+    Route::post('/orders/{orderId}/transfer', [FloorController::class, 'transferOrder'])->name('orders.transfer');
+});
+
+Route::prefix('pos')->name('pos.')->group(function (): void {
+    Route::get('/', [PosController::class, 'index'])->name('index');
+
+    Route::middleware(RequireOpenShiftMiddleware::class)->group(function (): void {
+        Route::post('/orders', [PosController::class, 'storeOrder'])->name('orders.store');
+        Route::post('/orders/{orderId}/items', [PosController::class, 'addItem'])->name('orders.items.add');
+        Route::delete('/order-items/{itemId}', [PosController::class, 'removeItem'])->name('orders.items.remove');
+        Route::post('/orders/{orderId}/fire', [PosController::class, 'fireRound'])->name('orders.fire');
+        Route::post('/orders/{orderId}/discount', [PosController::class, 'applyDiscount'])->name('orders.discount');
+        Route::post('/order-items/{itemId}/void', [PosController::class, 'voidItem'])->name('orders.items.void');
+    });
 });
