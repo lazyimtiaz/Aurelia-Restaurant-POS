@@ -6,6 +6,8 @@ namespace App\Modules\Orders\Actions;
 
 use App\Modules\Audit\Actions\RecordAuditLogAction;
 use App\Modules\Identity\Actions\VerifyManagerPinAction;
+use App\Modules\Inventory\Enums\StockMovementType;
+use App\Modules\Inventory\Jobs\DeductOrderInventoryJob;
 use App\Modules\Kitchen\Enums\ItemPrepState;
 use App\Modules\Kitchen\Enums\TicketState;
 use App\Modules\Kitchen\Enums\VoidReason;
@@ -92,6 +94,17 @@ final class VoidOrderItemAction
                 ],
                 isCritical: true,
             );
+
+            if ($wasInPrep) {
+                DeductOrderInventoryJob::dispatch(
+                    branchId: $order->branch_id,
+                    referenceType: 'voided_order_item',
+                    referenceId: $item->id,
+                    variantQuantities: [(int) $item->menu_item_variant_id => (int) $item->quantity],
+                    movementType: StockMovementType::Wastage,
+                    actorUserId: $actorUserId,
+                );
+            }
 
             OrderItemVoided::dispatch(
                 branchId: $order->branch_id,

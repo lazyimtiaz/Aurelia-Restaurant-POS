@@ -77,9 +77,10 @@ final class KdsController extends Controller
     ): RedirectResponse {
         $context = $getEvaluatorContext->execute($request);
         $expoId = (int) $context['activeUser']['id'];
+        $simulateLowStock = (bool) ($context['simulations']['triggerLowStockAuto86'] ?? false);
 
         try {
-            $serveTicket->execute($ticketId, $expoId);
+            $serveTicket->execute($ticketId, $expoId, $simulateLowStock);
         } catch (TicketNotReadyForExpoException $e) {
             throw ValidationException::withMessages(['ticket' => $e->getMessage()]);
         }

@@ -11,6 +11,10 @@ use App\Modules\Billing\Enums\TenderMethod;
 use App\Modules\Billing\Exceptions\RefundExceedsCapturedAmountException;
 use App\Modules\Billing\Models\PaymentTransaction;
 use App\Modules\Identity\Actions\VerifyManagerPinAction;
+use App\Modules\Inventory\Enums\StockMovementType;
+use App\Modules\Inventory\Jobs\DeductOrderInventoryJob;
+use App\Modules\Kitchen\Enums\ItemPrepState;
+use App\Modules\Orders\Models\OrderItem;
 use App\Modules\Shifts\Actions\RecordCashMovementAction;
 use App\Modules\Shifts\Enums\CashMovementType;
 use App\Modules\Shifts\Enums\ShiftState;
@@ -113,6 +117,43 @@ final class RefundPaymentAction
                 ],
                 isCritical: true,
             );
+
+            if ($data->wastage) {
+                $variantQuantities = [];
+
+                $splitItems = $original->billSplit?->items()->with('orderItem')->get();
+                if ($splitItems !== null && $splitItems->isNotEmpty()) {
+                    foreach ($splitItems as $splitItem) {
+                        $orderItem = $splitItem->orderItem;
+                        if ($orderItem === null || $orderItem->prep_state === ItemPrepState::Voided) {
+                            continue;
+                        }
+                        $variantId = (int) $orderItem->menu_item_variant_id;
+                        $variantQuantities[$variantId] = ($variantQuantities[$variantId] ?? 0) + (int) $orderItem->quantity;
+                    }
+                } else {
+                    $orderItems = OrderItem::query()
+                        ->where('order_id', $original->order_id)
+                        ->where('prep_state', '!=', ItemPrepState::Voided->value)
+                        ->get();
+
+                    foreach ($orderItems as $orderItem) {
+                        $variantId = (int) $orderItem->menu_item_variant_id;
+                        $variantQuantities[$variantId] = ($variantQuantities[$variantId] ?? 0) + (int) $orderItem->quantity;
+                    }
+                }
+
+                if ($variantQuantities !== []) {
+                    DeductOrderInventoryJob::dispatch(
+                        branchId: $original->branch_id,
+                        referenceType: 'payment_refund',
+                        referenceId: $refundTx->id,
+                        variantQuantities: $variantQuantities,
+                        movementType: StockMovementType::Wastage,
+                        actorUserId: $data->actorUserId,
+                    );
+                }
+            }
 
             return $refundTx;
         });

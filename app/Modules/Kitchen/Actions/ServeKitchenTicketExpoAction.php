@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Kitchen\Actions;
 
+use App\Modules\Inventory\Enums\StockMovementType;
+use App\Modules\Inventory\Jobs\DeductOrderInventoryJob;
 use App\Modules\Kitchen\Enums\ItemPrepState;
 use App\Modules\Kitchen\Enums\TicketState;
 use App\Modules\Kitchen\Events\TicketExpoServed;
@@ -14,9 +16,12 @@ use Illuminate\Support\Facades\DB;
 
 final class ServeKitchenTicketExpoAction
 {
-    public function execute(int $kitchenTicketId, int $expediterId): KitchenTicket
-    {
-        return DB::transaction(function () use ($kitchenTicketId): KitchenTicket {
+    public function execute(
+        int $kitchenTicketId,
+        int $expediterId,
+        bool $forceLowStockSimulation = false,
+    ): KitchenTicket {
+        return DB::transaction(function () use ($kitchenTicketId, $expediterId, $forceLowStockSimulation): KitchenTicket {
             $ticket = KitchenTicket::query()->with('order')->whereKey($kitchenTicketId)->lockForUpdate()->firstOrFail();
 
             $nonVoided = OrderItem::query()
@@ -40,6 +45,24 @@ final class ServeKitchenTicketExpoAction
                 'state' => TicketState::Served,
                 'served_at' => now(),
             ]);
+
+            $variantQuantities = [];
+            foreach ($nonVoided as $servedItem) {
+                $variantId = (int) $servedItem->menu_item_variant_id;
+                $variantQuantities[$variantId] = ($variantQuantities[$variantId] ?? 0) + (int) $servedItem->quantity;
+            }
+
+            if ($variantQuantities !== []) {
+                DeductOrderInventoryJob::dispatch(
+                    branchId: $ticket->branch_id,
+                    referenceType: 'kitchen_ticket',
+                    referenceId: $ticket->id,
+                    variantQuantities: $variantQuantities,
+                    movementType: StockMovementType::OrderSale,
+                    actorUserId: $expediterId,
+                    forceLowStockSimulation: $forceLowStockSimulation,
+                );
+            }
 
             TicketExpoServed::dispatch(
                 branchId: $ticket->branch_id,
