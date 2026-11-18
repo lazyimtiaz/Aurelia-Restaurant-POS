@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Modules\Billing\Contracts\PaymentGatewayInterface;
+use App\Modules\Billing\Gateways\SimulatedPaymentGateway;
 use Illuminate\Database\SQLiteConnection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -12,7 +14,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->app->bind(PaymentGatewayInterface::class, SimulatedPaymentGateway::class);
     }
 
     public function boot(): void
