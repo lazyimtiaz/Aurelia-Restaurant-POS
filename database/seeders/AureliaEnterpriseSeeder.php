@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Modules\Floor\Enums\TableState;
+use App\Modules\Floor\Models\DiningTable;
+use App\Modules\Floor\Models\FloorZone;
 use App\Modules\Identity\Enums\StaffRole;
 use App\Modules\Menu\Enums\PrepStation;
 use App\Modules\Menu\Models\BranchMenuOverride;
@@ -28,6 +31,7 @@ class AureliaEnterpriseSeeder extends Seeder
         $this->seedStaff($branches);
         $variants = $this->seedCatalog();
         $this->seedBranchOverrides($branches, $variants);
+        $this->seedFloorZonesAndTables($branches);
         $this->seedOpenShifts($branches);
     }
 
@@ -332,6 +336,52 @@ class AureliaEnterpriseSeeder extends Seeder
                     'is_available' => true,
                 ],
             );
+        }
+    }
+
+    /**
+     * @param  array<string, Branch>  $branches
+     */
+    private function seedFloorZonesAndTables(array $branches): void
+    {
+        foreach ($branches as $branch) {
+            $main = FloorZone::query()->updateOrCreate(
+                ['branch_id' => $branch->id, 'name' => 'Main Dining'],
+                ['sort_order' => 1],
+            );
+            $patio = FloorZone::query()->updateOrCreate(
+                ['branch_id' => $branch->id, 'name' => 'Patio'],
+                ['sort_order' => 2],
+            );
+            $bar = FloorZone::query()->updateOrCreate(
+                ['branch_id' => $branch->id, 'name' => 'Bar Counter'],
+                ['sort_order' => 3],
+            );
+
+            $tables = [
+                [$main->id, 'M1', 4],
+                [$main->id, 'M2', 4],
+                [$main->id, 'M3', 6],
+                [$main->id, 'M4', 2],
+                [$main->id, 'M5', 4],
+                [$patio->id, 'P1', 4],
+                [$patio->id, 'P2', 6],
+                [$patio->id, 'P3', 2],
+                [$bar->id, 'B1', 2],
+                [$bar->id, 'B2', 2],
+            ];
+
+            foreach ($tables as [$zoneId, $code, $capacity]) {
+                DiningTable::query()->firstOrCreate(
+                    ['branch_id' => $branch->id, 'code' => $code],
+                    [
+                        'floor_zone_id' => $zoneId,
+                        'capacity' => $capacity,
+                        'state' => TableState::Available,
+                        'current_guest_count' => 0,
+                    ],
+                );
+            }
         }
     }
 
