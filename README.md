@@ -2,6 +2,11 @@
 
 > A multi-branch hospitality **Point of Sale (POS)**, **Kitchen Display System (KDS)**, **Floor & Table Management**, **Recipe Inventory Engine**, and **Financial Audit Suite** built as a strictly bounded Laravel Modular Monolith with a responsive React 19 + Inertia v2 interface.
 
+> **Live Preview:** **[https://aurelio-pos.imtiazuddin.tech](https://aurelio-pos.imtiazuddin.tech)**  
+> **Terminal Sign-In:** `owner@aurelia.test` / `password` (`DTF — Downtown Flagship`)  
+> **Staff PINs (`/lock`):** Owner / Branch Manager `1234` · Cashier `1111` · Waiter `2222` · Chef `3333` · Kitchen Expo `4444` · Inventory `5555`  
+> *Hosted on Render Free Docker (`FrankenPHP` + SQLite); container restarts automatically re-seed a clean demo state.*
+
 ---
 
 ## Table of Contents
@@ -18,12 +23,13 @@
 10. [Application Features & Workspaces](#10-application-features--workspaces)
 11. [Screenshots](#11-screenshots)
 12. [Running, Walkthrough & Automated Testing](#12-running-walkthrough--automated-testing)
+13. [Deployment (Render Free Tier & Google Cloud Run)](#13-deployment-render-free-tier--google-cloud-run)
 
 ---
 
 ## 1. Application Definition & Overview
 
-**Aurelia Dining Group POS** is an end-to-end restaurant operations platform supporting shared terminal hardware across multiple locations (`DTF — Downtown Flagship`, `WFP — Waterfront Patio`, and `APX — Airport Express`).
+**Aurelia Dining Group POS** — live at **[aurelio-pos.imtiazuddin.tech](https://aurelio-pos.imtiazuddin.tech)** — is an end-to-end restaurant operations platform supporting shared terminal hardware across multiple locations (`DTF — Downtown Flagship`, `WFP — Waterfront Patio`, and `APX — Airport Express`).
 
 Rather than simulating single-user web forms, Aurelia models a real hospitality floor terminal:
 
@@ -338,7 +344,7 @@ php artisan serve
 
 ### 2. Guided Reviewer / User Walkthrough
 
-1. Open `http://127.0.0.1:8000/login` and sign in with `owner@aurelia.test` / `password` bound to **`DTF — Downtown Flagship`**.
+1. Open the live deployment at **[https://aurelio-pos.imtiazuddin.tech/login](https://aurelio-pos.imtiazuddin.tech/login)** (or `http://127.0.0.1:8000/login` locally) and sign in with `owner@aurelia.test` / `password` bound to **`DTF — Downtown Flagship`**.
 2. On `/lock`, tap **Waiter / Server (DTF)** (`2222`) to land on `/tables`, or tap **Cashier (DTF)** (`1111`) to open `/pos`.
 3. **Seeded Sample State (`DTF`):** Table `M3` already has open order `DTF-0001` (`$83.81`) fired to Kitchen KDS (`Grill & Hot Line` + `Bar & Beverages`), and `Butter-Poached Lobster Thermidor` (`ING-LOBSTER`) starts out-of-stock / `86`'d so you can test low-stock restoration immediately.
 4. **Ring, Customize, Adjust & Cancel:** Tap **+ Customize** on any dish, modify portions/notes, test the `− / +` stepper on draft rows, test **Cancel Tab** on an unfired draft order, or click **Send to Kitchen** to fire tickets to `/kitchen`.
@@ -361,9 +367,38 @@ GitHub Actions (`.github/workflows/ci.yml`) automatically runs the full Pest sui
 
 ---
 
-## 13. Cloud Run Deployment (Free Tier & Custom Domain)
+## 13. Deployment (Render Free Tier & Google Cloud Run)
 
-To host a live preview on **Google Cloud Run Always Free Tier (`us-central1`)** with an automatic **10-minute keep-warm Cloud Scheduler cron** (`GET /up`), strict zero-hidden-charge guardrails (Artifact Registry `keepCount: 1`, 1-day regional GCS build bucket lifecycle, `min-instances=0`, `max-instances=1`), and Cloudflare DNS (`aurelio-pos.imtiazuddin.tech` -> `ghs.googlehosted.com`), follow [docs/DEPLOYMENT_CLOUD_RUN.md](docs/DEPLOYMENT_CLOUD_RUN.md) and run:
+### Production Container Architecture (`Render Live Preview`)
+The live demo at **[https://aurelio-pos.imtiazuddin.tech](https://aurelio-pos.imtiazuddin.tech)** runs on **Render's Free Web Service** tier (`$0/mo`, no credit card required, `750` free instance-hours/month, `512 MB` RAM) built from the multi-stage [Dockerfile](Dockerfile):
+
+- **Frontend Asset Stage (`node:22-alpine`):** Compiles TypeScript + React 19 + Tailwind CSS v4 with Vite into `public/build`.
+- **Application Runtime (`dunglas/frankenphp:1-php8.4-alpine`):** Installs PHP 8.4 extensions (`pcntl`, `posix`, `pdo_sqlite`, `pdo_mysql`, `bcmath`, `intl`, `opcache`, `zip`), loads [docker/php-production.ini](docker/php-production.ini), strips Linux `CAP_NET_BIND_SERVICE` (`setcap -r /usr/local/bin/frankenphp`) for restricted rootless container runtimes (preventing Render exit code `126`), and configures [docker/Caddyfile](docker/Caddyfile) to bind dynamically to `$PORT` with long-lived cache headers on `/build/*` and `/images/*`.
+- **Zero-Touch Boot ([docker/entrypoint.sh](docker/entrypoint.sh)):** Creates writable framework/Caddy directories under `/tmp` & `storage/`, runs `php artisan migrate --force` and seeds `AureliaEnterpriseSeeder` on first boot (`/tmp/database.sqlite` resets cleanly across redeploys/restarts), caches `config`/`route`/`view`, and launches FrankenPHP.
+
+### Deploying to Render (Free Tier)
+
+1. Generate a Laravel application key (`php artisan key:generate --show`).
+2. Create a new **Web Service** on Render linked to the `main` branch with **Language: Docker** and **Instance Type: Free**.
+3. Set the required environment variables (all other production defaults like `APP_ENV=production`, `DB_CONNECTION=sqlite`, `SESSION_SECURE_COOKIE=true`, and `BROADCAST_CONNECTION=log` are already baked into [Dockerfile](Dockerfile)):
+   - `APP_URL=https://aurelio-pos.imtiazuddin.tech`
+   - `APP_KEY=base64:...`
+4. Under **Advanced**, set **Health Check Path** to `/up`.
+
+### Connecting `aurelio-pos.imtiazuddin.tech` via Cloudflare DNS
+
+1. Add `aurelio-pos.imtiazuddin.tech` under Render **Settings -> Custom Domains**.
+2. In **Cloudflare DNS** (`imtiazuddin.tech`), add a `CNAME` record:
+   - **Type:** `CNAME` · **Name:** `aurelio-pos` · **Target:** `<your-render-service>.onrender.com`
+   - **Proxy status:** **DNS only (Grey cloud)** *(allows Render's automatic Let's Encrypt SSL issuance/renewal and prevents Cloudflare bot challenges from blocking keep-warm pings).*
+
+### Keeping the Free Instance Warm (Preventing 15-Min Idle Sleep)
+
+- **GitHub Actions Cron ([.github/workflows/keep-warm.yml](.github/workflows/keep-warm.yml)):** Set repository variable `KEEP_WARM_URL` to `https://aurelio-pos.imtiazuddin.tech/up` (**Settings -> Secrets and variables -> Actions -> Variables**) to run `curl` pings every 10 minutes (`*/10 * * * *`).
+- **External Monitor Alternative:** Because GitHub automatically pauses scheduled workflows on repositories with no commits for 60 days, you can also point a free `cron-job.org` or `UptimeRobot` HTTP monitor at `/up`.
+
+### Alternative: Google Cloud Run (Always Free Tier)
+Automation scripts and zero-hidden-charge guardrails for deploying to **Google Cloud Run (`us-central1`)** + **Cloud Scheduler** are also included in [docs/DEPLOYMENT_CLOUD_RUN.md](docs/DEPLOYMENT_CLOUD_RUN.md) and `deploy/cloud-run/deploy.sh`:
 
 ```bash
 bash deploy/cloud-run/deploy.sh YOUR_GCP_PROJECT_ID
