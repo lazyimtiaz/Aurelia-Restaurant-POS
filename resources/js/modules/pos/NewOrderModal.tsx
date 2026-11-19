@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { router } from '@inertiajs/react';
-import { Minus, Plus, ShoppingBag, Utensils, X } from 'lucide-react';
+import { Minus, Plus, ShoppingBag, Utensils } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AnimatedTabs, IconBadge, MotionModal } from '@/design-system';
 import type { DiningTableData, FloorZoneData } from '@/types/pos';
 
 interface NewOrderModalProps {
@@ -23,10 +24,6 @@ export function NewOrderModal({ open, zones, onClose }: NewOrderModalProps) {
 
     const [selectedTableId, setSelectedTableId] = useState<number>(availableTables[0]?.id ?? 0);
     const [submitting, setSubmitting] = useState(false);
-
-    if (!open) {
-        return null;
-    }
 
     const effectiveTableId = selectedTableId || availableTables[0]?.id || 0;
 
@@ -54,117 +51,114 @@ export function NewOrderModal({ open, zones, onClose }: NewOrderModalProps) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-            <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-bold">Create New Order</h3>
-                    <button type="button" onClick={onClose} className="rounded p-1 hover:bg-muted cursor-pointer">
-                        <X className="h-4 w-4" />
-                    </button>
+        <MotionModal
+            open={open}
+            onClose={onClose}
+            title="Create New Order"
+            description="Open a seated dining room tab or quick counter takeaway ticket."
+            icon={
+                <IconBadge tone="orange" shape="squircle">
+                    <Utensils className="h-4.5 w-4.5" />
+                </IconBadge>
+            }
+            maxWidth="md"
+        >
+            <form onSubmit={handleSubmit} className="space-y-4 p-5 sm:p-6">
+                <AnimatedTabs
+                    layoutId="new-order-service-type"
+                    value={serviceType}
+                    onChange={setServiceType}
+                    className="w-full grid grid-cols-2"
+                    items={[
+                        { id: 'dine_in', label: 'Dine-In', icon: <Utensils className="h-3.5 w-3.5" /> },
+                        {
+                            id: 'takeaway',
+                            label: 'Takeaway',
+                            icon: <ShoppingBag className="h-3.5 w-3.5" />,
+                        },
+                    ]}
+                />
+
+                <div className="space-y-1.5">
+                    <label htmlFor="new-order-guest-name" className="ds-label block">
+                        Customer Name {serviceType === 'takeaway' ? '(Recommended)' : '(Optional)'}
+                    </label>
+                    <input
+                        id="new-order-guest-name"
+                        type="text"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        placeholder={
+                            serviceType === 'takeaway' ? 'e.g. Jordan Patel' : 'e.g. Party under Elena'
+                        }
+                        className="h-11 w-full rounded-xl border border-input bg-[var(--surface-inset)] px-3.5 text-sm text-foreground focus:border-primary focus:bg-card focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                    />
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-1">
-                        <button
-                            type="button"
-                            onClick={() => setServiceType('dine_in')}
-                            className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition cursor-pointer ${
-                                serviceType === 'dine_in'
-                                    ? 'bg-primary text-primary-foreground shadow-xs'
-                                    : 'text-stone-600 hover:text-foreground'
-                            }`}
-                        >
-                            <Utensils className="h-3.5 w-3.5" />
-                            Dine-In
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setServiceType('takeaway')}
-                            className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition cursor-pointer ${
-                                serviceType === 'takeaway'
-                                    ? 'bg-primary text-primary-foreground shadow-xs'
-                                    : 'text-stone-600 hover:text-foreground'
-                            }`}
-                        >
-                            <ShoppingBag className="h-3.5 w-3.5" />
-                            Takeaway
-                        </button>
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <label htmlFor="new-order-guest-name" className="text-xs font-semibold text-stone-700">
-                            Customer Name {serviceType === 'takeaway' ? '(Recommended)' : '(Optional)'}
-                        </label>
-                        <input
-                            id="new-order-guest-name"
-                            type="text"
-                            value={customerName}
-                            onChange={(e) => setCustomerName(e.target.value)}
-                            placeholder={serviceType === 'takeaway' ? 'e.g. Jordan Patel' : 'e.g. Party under Elena'}
-                            className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none"
-                        />
-                    </div>
-
-                    {serviceType === 'dine_in' && (
-                        <>
-                            <div className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-3.5 py-2.5">
-                                <span className="text-xs font-semibold text-stone-700">Guests</span>
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setGuestCount((g) => Math.max(1, g - 1))}
-                                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card hover:bg-muted cursor-pointer"
-                                    >
-                                        <Minus className="h-3.5 w-3.5" />
-                                    </button>
-                                    <span className="w-8 text-center font-mono text-sm font-bold">
-                                        {guestCount}
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setGuestCount((g) => Math.min(20, g + 1))}
-                                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card hover:bg-muted cursor-pointer"
-                                    >
-                                        <Plus className="h-3.5 w-3.5" />
-                                    </button>
-                                </div>
+                {serviceType === 'dine_in' && (
+                    <>
+                        <div className="flex items-center justify-between rounded-xl border border-border bg-[var(--surface-inset)] px-4 py-3">
+                            <span className="ds-label">Party Guests</span>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setGuestCount((g) => Math.max(1, g - 1))}
+                                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card hover:bg-secondary cursor-pointer"
+                                >
+                                    <Minus className="h-3.5 w-3.5" />
+                                </button>
+                                <span className="w-8 text-center ds-num-sm">{guestCount}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setGuestCount((g) => Math.min(20, g + 1))}
+                                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card hover:bg-secondary cursor-pointer"
+                                >
+                                    <Plus className="h-3.5 w-3.5" />
+                                </button>
                             </div>
+                        </div>
 
-                            <div className="space-y-1.5">
-                                <label htmlFor="new-order-table" className="text-xs font-semibold text-stone-700">
-                                    Choose Table
-                                </label>
-                                {availableTables.length === 0 ? (
-                                    <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                                        All tables are currently occupied or need clearing.
-                                    </p>
-                                ) : (
-                                    <select
-                                        id="new-order-table"
-                                        value={effectiveTableId}
-                                        onChange={(e) => setSelectedTableId(Number(e.target.value))}
-                                        className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none"
-                                    >
-                                        {availableTables.map((t) => (
-                                            <option key={t.id} value={t.id}>
-                                                {t.code} — {t.zoneName} ({t.capacity} seats)
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
-                            </div>
-                        </>
-                    )}
+                        <div className="space-y-1.5">
+                            <label htmlFor="new-order-table" className="ds-label block">
+                                Choose Table
+                            </label>
+                            {availableTables.length === 0 ? (
+                                <p className="rounded-xl border border-rose-500/25 bg-rose-500/10 px-3.5 py-2.5 text-xs font-medium text-rose-700">
+                                    All tables are currently occupied or need clearing.
+                                </p>
+                            ) : (
+                                <select
+                                    id="new-order-table"
+                                    value={effectiveTableId}
+                                    onChange={(e) => setSelectedTableId(Number(e.target.value))}
+                                    className="h-11 w-full rounded-xl border border-input bg-[var(--surface-inset)] px-3.5 text-sm text-foreground focus:border-primary focus:bg-card focus:outline-none"
+                                >
+                                    {availableTables.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.code} — {t.zoneName} ({t.capacity} seats)
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
+                    </>
+                )}
 
+                <div className="flex gap-2.5 pt-2">
+                    <Button type="button" variant="outline" size="lg" onClick={onClose} className="w-28">
+                        Cancel
+                    </Button>
                     <Button
                         type="submit"
-                        disabled={submitting || (serviceType === 'dine_in' && !effectiveTableId)}
-                        className="w-full rounded-xl py-5 text-sm font-semibold"
+                        size="lg"
+                        loading={submitting}
+                        disabled={serviceType === 'dine_in' && !effectiveTableId}
+                        className="flex-1"
                     >
                         {submitting ? 'Creating Order...' : 'Create Order'}
                     </Button>
-                </form>
-            </div>
-        </div>
+                </div>
+            </form>
+        </MotionModal>
     );
 }

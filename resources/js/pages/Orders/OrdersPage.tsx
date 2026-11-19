@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Receipt, RotateCcw, Search, X } from 'lucide-react';
-import { PosAppLayout } from '@/layouts/PosAppLayout';
-import { Badge } from '@/components/ui/badge';
+import { Receipt, RotateCcw, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { AnimatedTabs, MotionDrawer, StatusPill, type StatusPillTone } from '@/design-system';
 import { useBranchEcho } from '@/hooks/useBranchEcho';
+import { PosAppLayout } from '@/layouts/PosAppLayout';
 import { formatCents } from '@/lib/money';
+import { cn } from '@/lib/utils';
 import { RefundModal } from '@/modules/billing/RefundModal';
 import { ThermalReceiptDialog } from '@/modules/billing/ThermalReceiptDialog';
 import { UnifiedPaymentModal } from '@/modules/billing/UnifiedPaymentModal';
@@ -19,20 +21,33 @@ interface OrdersPageProps {
 
 type OrderFilterTab = 'all' | 'in_progress' | 'ready' | 'completed';
 
-function deriveOrderStage(order: ActiveOrderData): { label: string; category: Exclude<OrderFilterTab, 'all'>; variant: 'success' | 'warning' | 'destructive' | 'outline' | 'secondary' } {
+function deriveOrderStage(order: ActiveOrderData): {
+    label: string;
+    category: Exclude<OrderFilterTab, 'all'>;
+    tone: StatusPillTone;
+    pulse?: boolean;
+} {
     if (order.state === 'paid') {
-        return { label: 'Completed', category: 'completed', variant: 'outline' };
+        return { label: 'Completed', category: 'completed', tone: 'neutral' };
     }
     if (order.state === 'billing' || order.state === 'partially_paid') {
-        return { label: order.state === 'partially_paid' ? 'Partially Paid' : 'Ready to Pay', category: 'ready', variant: 'warning' };
+        return {
+            label: order.state === 'partially_paid' ? 'Partially Paid' : 'Ready to Pay',
+            category: 'ready',
+            tone: 'warning',
+            pulse: true,
+        };
     }
-    const activeItems = order.items.filter((i) => i.prep_state !== 'voided' && i.prep_state !== 'draft');
+    const activeItems = order.items.filter(
+        (i) => i.prep_state !== 'voided' && i.prep_state !== 'draft',
+    );
     const allReadyOrServed =
-        activeItems.length > 0 && activeItems.every((i) => i.prep_state === 'ready' || i.prep_state === 'served');
+        activeItems.length > 0 &&
+        activeItems.every((i) => i.prep_state === 'ready' || i.prep_state === 'served');
     if (allReadyOrServed) {
-        return { label: 'Ready', category: 'ready', variant: 'success' };
+        return { label: 'Ready', category: 'ready', tone: 'success', pulse: true };
     }
-    return { label: 'In Progress', category: 'in_progress', variant: 'secondary' };
+    return { label: 'In Progress', category: 'in_progress', tone: 'brand', pulse: true };
 }
 
 export default function OrdersPage({ orders }: OrdersPageProps) {
@@ -50,16 +65,20 @@ export default function OrdersPage({ orders }: OrdersPageProps) {
         router.reload({ only: ['orders'] });
     });
 
+    const stageCounts = useMemo(() => {
+        const counts = { all: orders.length, in_progress: 0, ready: 0, completed: 0 };
+        orders.forEach((order) => {
+            counts[deriveOrderStage(order).category] += 1;
+        });
+        return counts;
+    }, [orders]);
+
     const filteredOrders = useMemo(() => {
         const needle = search.trim().toLowerCase();
         return orders.filter((order) => {
             const stage = deriveOrderStage(order);
-            if (activeTab !== 'all' && stage.category !== activeTab) {
-                return false;
-            }
-            if (!needle) {
-                return true;
-            }
+            if (activeTab !== 'all' && stage.category !== activeTab) return false;
+            if (!needle) return true;
             return (
                 order.order_number.toLowerCase().includes(needle) ||
                 (order.customer_name ?? '').toLowerCase().includes(needle) ||
@@ -89,54 +108,44 @@ export default function OrdersPage({ orders }: OrdersPageProps) {
     return (
         <PosAppLayout
             title="Orders Board"
-            subtitle="Track open tabs, kitchen readiness, completed receipts, and split payments."
+            subtitle="Inspect active tickets, settle split checks, reprint thermal receipts, and process refunds."
         >
             <Head title="Orders — Aurelia POS" />
 
-            <div className="space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3.5">
-                    <div className="flex flex-wrap gap-2">
-                        {(
-                            [
-                                ['all', 'All'],
-                                ['in_progress', 'In Progress'],
-                                ['ready', 'Ready / Billing'],
-                                ['completed', 'Completed'],
-                            ] as const
-                        ).map(([tabKey, label]) => (
-                            <button
-                                key={tabKey}
-                                type="button"
-                                onClick={() => setActiveTab(tabKey)}
-                                className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
-                                    activeTab === tabKey
-                                        ? 'bg-primary text-primary-foreground shadow-2xs'
-                                        : 'bg-muted text-stone-700 hover:bg-orange-50'
-                                }`}
-                            >
-                                {label}
-                            </button>
-                        ))}
-                    </div>
+            <div className="space-y-6">
+                {/* Filter Tabs & Search */}
+                <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-bistro-card lg:flex-row lg:items-center lg:justify-between">
+                    <AnimatedTabs
+                        layoutId="orders-filter-tabs"
+                        value={activeTab}
+                        onChange={setActiveTab}
+                        items={[
+                            { id: 'all', label: 'All', count: stageCounts.all },
+                            { id: 'in_progress', label: 'In Progress', count: stageCounts.in_progress },
+                            { id: 'ready', label: 'Ready / Billing', count: stageCounts.ready },
+                            { id: 'completed', label: 'Completed', count: stageCounts.completed },
+                        ]}
+                    />
 
-                    <div className="relative w-full sm:w-64">
+                    <div className="relative w-full lg:w-64 shrink-0">
                         <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                         <input
                             type="search"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search order #, table, or guest..."
-                            className="w-full rounded-xl border border-input bg-background py-1.5 pr-3 pl-8 text-xs focus:border-primary focus:outline-none"
+                            className="h-10 w-full rounded-xl border border-input bg-[var(--surface-inset)] pr-3 pl-9 text-xs focus:border-primary focus:bg-card focus:outline-none"
                         />
                     </div>
                 </div>
 
+                {/* Orders Grid */}
                 {filteredOrders.length === 0 ? (
-                    <div className="rounded-2xl border border-border bg-card py-16 text-center text-sm text-muted-foreground">
+                    <Card className="py-16 text-center text-sm text-muted-foreground">
                         No orders match this filter.
-                    </div>
+                    </Card>
                 ) : (
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
                         {filteredOrders.map((order) => {
                             const stage = deriveOrderStage(order);
                             const visibleItems = order.items.filter((i) => i.prep_state !== 'voided');
@@ -144,65 +153,72 @@ export default function OrdersPage({ orders }: OrdersPageProps) {
                             const hasDraftItems = visibleItems.some((i) => i.prep_state === 'draft');
 
                             return (
-                                <div
-                                    key={order.id}
-                                    className="flex flex-col justify-between rounded-2xl border border-border bg-card p-4 shadow-2xs space-y-4"
-                                >
-                                    <div className="space-y-3">
+                                <Card key={order.id} variant="interactive" className="flex flex-col justify-between p-4 sm:p-5 space-y-4">
+                                    <div className="space-y-3.5">
                                         <div className="flex items-start justify-between gap-2">
-                                            <div className="flex items-center gap-3">
+                                            <div className="flex min-w-0 items-center gap-3">
                                                 <div
-                                                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-bold text-xs ${
+                                                    className={cn(
+                                                        'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-mono text-xs font-bold',
                                                         order.table_code
                                                             ? 'bg-emerald-700 text-white'
-                                                            : 'bg-amber-400 text-stone-900'
-                                                    }`}
+                                                            : 'bg-amber-400 text-stone-950',
+                                                    )}
                                                 >
                                                     {order.table_code ?? 'TA'}
                                                 </div>
-                                                <div>
-                                                    <div className="font-bold text-sm">
-                                                        {order.customer_name || (order.table_code ? `Table ${order.table_code}` : 'Takeaway Guest')}
+                                                <div className="min-w-0">
+                                                    <div className="truncate ds-card-title">
+                                                        {order.customer_name ||
+                                                            (order.table_code
+                                                                ? `Table ${order.table_code}`
+                                                                : 'Takeaway Guest')}
                                                     </div>
-                                                    <div className="text-xs text-muted-foreground">
+                                                    <div className="truncate ds-caption font-mono">
                                                         {order.order_number} · {order.service_type.replace('_', ' ')}
                                                     </div>
                                                 </div>
                                             </div>
-                                            <Badge variant={stage.variant}>{stage.label}</Badge>
+                                            <StatusPill
+                                                tone={stage.tone}
+                                                pulse={stage.pulse}
+                                                label={stage.label}
+                                                className="shrink-0"
+                                            />
                                         </div>
 
-                                        <div className="space-y-1.5 border-t border-border pt-2.5 text-xs">
+                                        <div className="space-y-1.5 border-t border-border/70 pt-3 text-xs">
                                             {previewItems.map((item) => (
                                                 <div key={item.id} className="flex justify-between gap-2">
-                                                    <span className="truncate">
+                                                    <span className="truncate text-foreground">
                                                         {item.quantity}× {item.item_name}
                                                     </span>
-                                                    <span className="font-mono text-muted-foreground">
+                                                    <span className="shrink-0 font-mono text-muted-foreground tabular-nums">
                                                         {formatCents(item.line_total_cents)}
                                                     </span>
                                                 </div>
                                             ))}
                                             {visibleItems.length > 4 && (
-                                                <div className="text-[11px] font-medium text-muted-foreground">
+                                                <div className="ds-caption font-medium">
                                                     +{visibleItems.length - 4} more items
                                                 </div>
                                             )}
                                         </div>
                                     </div>
 
-                                    <div className="space-y-3 border-t border-border pt-3">
-                                        <div className="flex items-center justify-between text-sm font-bold">
-                                            <span>Total</span>
-                                            <span className="font-mono">{formatCents(order.total_cents)}</span>
+                                    <div className="space-y-3 border-t border-border pt-3.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="ds-label text-muted-foreground">Total</span>
+                                            <span className="ds-num-sm text-foreground">
+                                                {formatCents(order.total_cents)}
+                                            </span>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-2 gap-2.5">
                                             <Button
                                                 type="button"
                                                 variant="outline"
                                                 size="sm"
-                                                className="rounded-xl"
                                                 onClick={() => setDetailOrderId(order.id)}
                                             >
                                                 See Details
@@ -213,7 +229,6 @@ export default function OrdersPage({ orders }: OrdersPageProps) {
                                                     type="button"
                                                     size="sm"
                                                     variant="secondary"
-                                                    className="rounded-xl"
                                                     disabled={!order.bill_splits?.[0]}
                                                     onClick={() => {
                                                         if (order.bill_splits?.[0]) {
@@ -222,13 +237,12 @@ export default function OrdersPage({ orders }: OrdersPageProps) {
                                                     }}
                                                 >
                                                     <Receipt className="h-3.5 w-3.5" />
-                                                    Receipt
+                                                    <span>Receipt</span>
                                                 </Button>
                                             ) : (
                                                 <Button
                                                     type="button"
                                                     size="sm"
-                                                    className="rounded-xl"
                                                     disabled={hasDraftItems || visibleItems.length === 0}
                                                     onClick={() => openPayment(order)}
                                                 >
@@ -237,49 +251,46 @@ export default function OrdersPage({ orders }: OrdersPageProps) {
                                             )}
                                         </div>
                                     </div>
-                                </div>
+                                </Card>
                             );
                         })}
                     </div>
                 )}
             </div>
 
-            {detailOrder && (
-                <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs">
-                    <div className="flex h-full w-full max-w-md flex-col justify-between border-l border-border bg-card p-6 shadow-2xl overflow-y-auto">
-                        <div className="space-y-4">
-                            <div className="flex items-start justify-between border-b border-border pb-3">
-                                <div>
-                                    <h3 className="text-lg font-bold">{detailOrder.order_number}</h3>
-                                    <p className="text-xs text-muted-foreground">
-                                        {detailOrder.table_code ? `Table ${detailOrder.table_code}` : detailOrder.customer_name || 'Takeaway'}
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setDetailOrderId(null)}
-                                    className="rounded p-1 hover:bg-muted cursor-pointer"
-                                >
-                                    <X className="h-4 w-4" />
-                                </button>
-                            </div>
-
+            {/* Order Inspection Drawer */}
+            <MotionDrawer
+                open={detailOrder !== null}
+                onClose={() => setDetailOrderId(null)}
+                side="right"
+                title={detailOrder?.order_number}
+                description={
+                    detailOrder
+                        ? detailOrder.table_code
+                            ? `Table ${detailOrder.table_code}`
+                            : detailOrder.customer_name || 'Takeaway'
+                        : undefined
+                }
+            >
+                {detailOrder && (
+                    <div className="flex h-full flex-col justify-between p-5 sm:p-6 space-y-6">
+                        <div className="space-y-5">
                             <div className="space-y-2 text-xs">
-                                <div className="font-bold uppercase text-muted-foreground">Items</div>
+                                <span className="ds-overline block">Items</span>
                                 {detailOrder.items.map((item) => (
                                     <div
                                         key={item.id}
-                                        className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-3 py-2"
+                                        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-[var(--surface-inset)] px-3.5 py-2.5"
                                     >
-                                        <div>
-                                            <div className="font-medium">
+                                        <div className="min-w-0">
+                                            <div className="truncate font-semibold text-foreground">
                                                 {item.quantity}× {item.item_name} ({item.variant_name})
                                             </div>
-                                            <div className="text-[11px] text-muted-foreground uppercase">
+                                            <div className="text-[11px] uppercase text-muted-foreground">
                                                 {item.prep_state}
                                             </div>
                                         </div>
-                                        <span className="font-mono font-bold">
+                                        <span className="ds-num-sm shrink-0 text-foreground">
                                             {formatCents(item.line_total_cents)}
                                         </span>
                                     </div>
@@ -287,15 +298,16 @@ export default function OrdersPage({ orders }: OrdersPageProps) {
                             </div>
 
                             {(detailOrder.bill_splits?.length ?? 0) > 0 && (
-                                <div className="space-y-2 text-xs">
-                                    <div className="font-bold uppercase text-muted-foreground">
-                                        Split Checks &amp; Transactions
-                                    </div>
+                                <div className="space-y-2.5 text-xs">
+                                    <span className="ds-overline block">Split Checks &amp; Transactions</span>
                                     {detailOrder.bill_splits!.map((split) => (
-                                        <div key={split.id} className="rounded-xl border border-border p-3 space-y-2">
+                                        <div
+                                            key={split.id}
+                                            className="rounded-2xl border border-border bg-card p-3.5 space-y-2.5"
+                                        >
                                             <div className="flex items-center justify-between font-semibold">
                                                 <span>{split.label}</span>
-                                                <span className="font-mono">{formatCents(split.total_cents)}</span>
+                                                <span className="ds-num-sm">{formatCents(split.total_cents)}</span>
                                             </div>
                                             {split.state === 'paid' && (
                                                 <Button
@@ -305,22 +317,30 @@ export default function OrdersPage({ orders }: OrdersPageProps) {
                                                     className="w-full"
                                                     onClick={() => setReceiptSplitId(split.id)}
                                                 >
-                                                    <Receipt className="h-3.5 w-3.5" /> Thermal Receipt
+                                                    <Receipt className="h-3.5 w-3.5" />
+                                                    <span>Thermal Receipt</span>
                                                 </Button>
                                             )}
                                             {split.transactions
-                                                .filter((tx) => tx.state === 'captured' && tx.refundable_remaining_cents > 0)
+                                                .filter(
+                                                    (tx) =>
+                                                        tx.state === 'captured' &&
+                                                        tx.refundable_remaining_cents > 0,
+                                                )
                                                 .map((tx) => (
                                                     <Button
                                                         key={tx.id}
                                                         type="button"
                                                         size="sm"
                                                         variant="ghost"
-                                                        className="w-full text-rose-700 hover:bg-rose-50"
+                                                        className="w-full text-rose-700 hover:bg-rose-500/10"
                                                         onClick={() => setRefundPayment(tx)}
                                                     >
                                                         <RotateCcw className="h-3.5 w-3.5" />
-                                                        Refund {tx.tender_method.toUpperCase()} ({formatCents(tx.refundable_remaining_cents)} avail)
+                                                        <span>
+                                                            Refund {tx.tender_method.toUpperCase()} (
+                                                            {formatCents(tx.refundable_remaining_cents)} avail)
+                                                        </span>
                                                     </Button>
                                                 ))}
                                         </div>
@@ -329,23 +349,29 @@ export default function OrdersPage({ orders }: OrdersPageProps) {
                             )}
                         </div>
 
-                        <div className="flex gap-2 border-t border-border pt-4">
+                        <div className="flex gap-2.5 border-t border-border pt-4">
                             {detailOrder.state !== 'paid' && (
                                 <Button
                                     type="button"
+                                    size="lg"
                                     className="flex-1"
                                     onClick={() => router.visit(`/pos?order_id=${detailOrder.id}`)}
                                 >
                                     Open in POS
                                 </Button>
                             )}
-                            <Button type="button" variant="outline" onClick={() => setDetailOrderId(null)}>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="lg"
+                                onClick={() => setDetailOrderId(null)}
+                            >
                                 Close
                             </Button>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+            </MotionDrawer>
 
             <UnifiedPaymentModal
                 open={payOrder !== null}

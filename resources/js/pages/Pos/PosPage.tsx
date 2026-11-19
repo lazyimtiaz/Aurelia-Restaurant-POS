@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { router, usePage } from '@inertiajs/react';
-import { Head } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
     ArrowRightLeft,
     Ban,
     CheckCircle2,
+    ChevronUp,
     Flame,
     Percent,
     Plus,
@@ -13,13 +14,15 @@ import {
     ShoppingBag,
     Trash2,
 } from 'lucide-react';
-import { PosAppLayout } from '@/layouts/PosAppLayout';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { AnimatedTabs, MotionDrawer, StatusPill } from '@/design-system';
 import { useBranchEcho } from '@/hooks/useBranchEcho';
+import { PosAppLayout } from '@/layouts/PosAppLayout';
 import { formatCents } from '@/lib/money';
-import { UnifiedPaymentModal } from '@/modules/billing/UnifiedPaymentModal';
+import { cn } from '@/lib/utils';
 import { ThermalReceiptDialog } from '@/modules/billing/ThermalReceiptDialog';
+import { UnifiedPaymentModal } from '@/modules/billing/UnifiedPaymentModal';
 import { DishThumbnail } from '@/modules/pos/DishThumbnail';
 import { ManagerPinModal } from '@/modules/pos/ManagerPinModal';
 import { ModifierSheet } from '@/modules/pos/ModifierSheet';
@@ -52,6 +55,7 @@ export default function PosPage({
     const [search, setSearch] = useState('');
 
     const [newOrderOpen, setNewOrderOpen] = useState(false);
+    const [mobileCartOpen, setMobileCartOpen] = useState(false);
     const [modifierItem, setModifierItem] = useState<MenuItemData | null>(null);
     const [transferOpen, setTransferOpen] = useState(false);
     const [paymentOpen, setPaymentOpen] = useState(false);
@@ -79,6 +83,22 @@ export default function PosPage({
     const canModifyItems =
         activeOrder !== null && (activeOrder.state === 'draft' || activeOrder.state === 'open');
 
+    const categoryTabs = useMemo(
+        () => [
+            {
+                id: 'all',
+                label: 'All Menu',
+                count: catalog.reduce((sum, c) => sum + c.items.length, 0),
+            },
+            ...catalog.map((cat) => ({
+                id: cat.slug,
+                label: cat.name,
+                count: cat.items.length,
+            })),
+        ],
+        [catalog],
+    );
+
     const visibleItems = useMemo(() => {
         const needle = search.trim().toLowerCase();
         return catalog
@@ -86,9 +106,7 @@ export default function PosPage({
             .flatMap((cat) =>
                 cat.items
                     .filter((item) => {
-                        if (!needle) {
-                            return true;
-                        }
+                        if (!needle) return true;
                         return (
                             item.name.toLowerCase().includes(needle) ||
                             item.variants.some((v) => v.sku.toLowerCase().includes(needle))
@@ -99,17 +117,13 @@ export default function PosPage({
     }, [catalog, activeCategorySlug, search]);
 
     const handleQuickAddOrConfigure = (item: MenuItemData) => {
-        if (!activeOrder || !canModifyItems) {
-            return;
-        }
+        if (!activeOrder || !canModifyItems) return;
         if (item.modifier_groups.length > 0 || item.variants.length > 1) {
             setModifierItem(item);
             return;
         }
         const variant = item.variants.find((v) => v.is_available);
-        if (!variant) {
-            return;
-        }
+        if (!variant) return;
         router.post(
             `/pos/orders/${activeOrder.id}/items`,
             {
@@ -130,9 +144,7 @@ export default function PosPage({
         seat_number: number | null;
         special_instructions: string;
     }) => {
-        if (!activeOrder) {
-            return;
-        }
+        if (!activeOrder) return;
         router.post(`/pos/orders/${activeOrder.id}/items`, payload, {
             preserveScroll: true,
             onSuccess: () => setModifierItem(null),
@@ -140,9 +152,7 @@ export default function PosPage({
     };
 
     const handleDiscountClick = (bps: number) => {
-        if (!activeOrder) {
-            return;
-        }
+        if (!activeOrder) return;
         if (bps > pinThresholdBps) {
             setPinError(null);
             setPinModalState({ type: 'discount', discountBps: bps });
@@ -152,9 +162,7 @@ export default function PosPage({
     };
 
     const handlePinConfirm = ({ pin, reason }: { pin: string; reason?: string }) => {
-        if (!pinModalState || !activeOrder) {
-            return;
-        }
+        if (!pinModalState || !activeOrder) return;
         setPinError(null);
 
         if (pinModalState.type === 'void') {
@@ -188,9 +196,8 @@ export default function PosPage({
     };
 
     const handleOpenCharge = () => {
-        if (!activeOrder) {
-            return;
-        }
+        if (!activeOrder) return;
+        setMobileCartOpen(false);
         if (activeOrder.state === 'billing' || activeOrder.state === 'partially_paid') {
             setPaymentOpen(true);
             return;
@@ -208,17 +215,334 @@ export default function PosPage({
     const draftItems = activeOrder?.items.filter((i) => i.prep_state === 'draft') ?? [];
     const firedItems =
         activeOrder?.items.filter((i) => i.prep_state !== 'draft' && i.prep_state !== 'voided') ?? [];
+    const totalTicketItems =
+        draftItems.reduce((s, i) => s + i.quantity, 0) +
+        firedItems.reduce((s, i) => s + i.quantity, 0);
+
+    const renderOrderDetail = () => {
+        if (!activeOrder) {
+            return (
+                <div className="space-y-4 py-14 text-center px-4">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-inset)] text-muted-foreground border border-border">
+                        <ShoppingBag className="h-6 w-6" />
+                    </div>
+                    <div>
+                        <div className="ds-section-title">No Active Order Selected</div>
+                        <p className="ds-caption mt-1">
+                            Open a seated dining room tab or counter takeaway order to start ringing items.
+                        </p>
+                    </div>
+                    <Button type="button" onClick={() => setNewOrderOpen(true)}>
+                        <Plus className="h-4 w-4" />
+                        <span>Create Order</span>
+                    </Button>
+                </div>
+            );
+        }
+
+        return (
+            <div className="flex flex-col space-y-4">
+                <div className="flex items-start justify-between gap-2 border-b border-border pb-3.5">
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h2 className="ds-section-title font-mono">{activeOrder.order_number}</h2>
+                            <StatusPill
+                                tone={
+                                    activeOrder.state === 'billing'
+                                        ? 'warning'
+                                        : activeOrder.state === 'partially_paid'
+                                          ? 'danger'
+                                          : 'brand'
+                                }
+                                label={activeOrder.state.replace('_', ' ')}
+                            />
+                        </div>
+                        <p className="ds-caption mt-0.5 truncate">
+                            {activeOrder.table_code
+                                ? `Table ${activeOrder.table_code} (${activeOrder.guest_count} guests)`
+                                : activeOrder.customer_name || 'Takeaway Order'}
+                        </p>
+                    </div>
+                    {activeOrder.table_id && canModifyItems && (
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setTransferOpen(true)}
+                        >
+                            <ArrowRightLeft className="h-3.5 w-3.5" />
+                            <span>Move</span>
+                        </Button>
+                    )}
+                </div>
+
+                <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
+                    {draftItems.length === 0 && firedItems.length === 0 && (
+                        <p className="py-6 text-center ds-caption">
+                            Tap dishes from the menu to add items to this ticket.
+                        </p>
+                    )}
+
+                    {draftItems.length > 0 && (
+                        <div className="space-y-2">
+                            <span className="ds-overline block text-primary">
+                                Draft Cart ({draftItems.length})
+                            </span>
+                            <AnimatePresence initial={false}>
+                                {draftItems.map((item) => (
+                                    <motion.div
+                                        key={item.id}
+                                        layout
+                                        initial={{ opacity: 0, y: 6 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, x: 16 }}
+                                        transition={{ duration: 0.16 }}
+                                        className="flex items-start justify-between gap-2 rounded-xl border border-primary/25 bg-accent/60 p-3 text-xs"
+                                    >
+                                        <div className="min-w-0">
+                                            <div className="font-semibold text-foreground">
+                                                {item.quantity}× {item.item_name} ({item.variant_name})
+                                            </div>
+                                            {item.modifiers.length > 0 && (
+                                                <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                                    {item.modifiers.map((m) => m.name).join(', ')}
+                                                </div>
+                                            )}
+                                            {item.special_instructions && (
+                                                <div className="mt-0.5 italic text-primary">
+                                                    “{item.special_instructions}”
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex shrink-0 items-center gap-2">
+                                            <span className="ds-num-sm text-foreground">
+                                                {formatCents(item.line_total_cents)}
+                                            </span>
+                                            {canModifyItems && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        router.delete(`/pos/order-items/${item.id}`, {
+                                                            preserveScroll: true,
+                                                        })
+                                                    }
+                                                    className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-500/10 cursor-pointer"
+                                                    aria-label="Remove item"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </AnimatePresence>
+                        </div>
+                    )}
+
+                    {firedItems.length > 0 && (
+                        <div className="space-y-2">
+                            <span className="ds-overline block">
+                                Sent to Kitchen ({firedItems.length})
+                            </span>
+                            <AnimatePresence initial={false}>
+                                {firedItems.map((item) => (
+                                    <motion.div
+                                        key={item.id}
+                                        layout
+                                        initial={{ opacity: 0, y: 6 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="flex items-start justify-between gap-2 rounded-xl border border-border bg-[var(--surface-inset)] p-3 text-xs"
+                                    >
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-1.5 font-medium text-foreground">
+                                                <span>
+                                                    {item.quantity}× {item.item_name}
+                                                </span>
+                                                <StatusPill
+                                                    tone={
+                                                        item.prep_state === 'ready' || item.prep_state === 'served'
+                                                            ? 'success'
+                                                            : item.prep_state === 'in_prep'
+                                                              ? 'warning'
+                                                              : 'neutral'
+                                                    }
+                                                    dot={false}
+                                                    label={item.prep_state}
+                                                />
+                                            </div>
+                                            {item.modifiers.length > 0 && (
+                                                <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                                    {item.modifiers.map((m) => m.name).join(', ')}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex shrink-0 flex-col items-end gap-1">
+                                            <span className="ds-num-sm text-foreground">
+                                                {formatCents(item.line_total_cents)}
+                                            </span>
+                                            {canModifyItems && item.prep_state !== 'served' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setPinError(null);
+                                                        setPinModalState({ type: 'void', item });
+                                                    }}
+                                                    className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                                                >
+                                                    <Ban className="h-3 w-3" />
+                                                    <span>Void</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </AnimatePresence>
+                        </div>
+                    )}
+                </div>
+
+                {canModifyItems && (
+                    <div className="space-y-2 border-t border-border pt-3">
+                        <div className="ds-overline flex items-center gap-1">
+                            <Percent className="h-3 w-3" />
+                            <span>Discount</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                            {[
+                                { label: 'None', bps: 0 },
+                                { label: '10%', bps: 1000 },
+                                { label: '20% (PIN)', bps: 2000 },
+                            ].map((opt) => (
+                                <button
+                                    key={opt.bps}
+                                    type="button"
+                                    onClick={() => handleDiscountClick(opt.bps)}
+                                    className={cn(
+                                        'rounded-xl border py-2 text-xs font-semibold transition cursor-pointer',
+                                        activeOrder.discount_bps === opt.bps
+                                            ? 'border-primary bg-accent text-primary'
+                                            : 'border-border bg-card hover:bg-[var(--surface-inset)]',
+                                    )}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div className="space-y-1.5 border-t border-dashed border-border pt-3 text-xs">
+                    <div className="flex justify-between text-muted-foreground">
+                        <span>Subtotal</span>
+                        <span className="font-mono tabular-nums">
+                            {formatCents(activeOrder.subtotal_cents)}
+                        </span>
+                    </div>
+                    {activeOrder.discount_cents > 0 && (
+                        <div className="flex justify-between text-emerald-700 font-medium">
+                            <span>Discount</span>
+                            <span className="font-mono tabular-nums">
+                                -{formatCents(activeOrder.discount_cents)}
+                            </span>
+                        </div>
+                    )}
+                    <div className="flex justify-between text-muted-foreground">
+                        <span>Service Charge</span>
+                        <span className="font-mono tabular-nums">
+                            {formatCents(activeOrder.service_charge_cents)}
+                        </span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                        <span>Tax</span>
+                        <span className="font-mono tabular-nums">{formatCents(activeOrder.tax_cents)}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-border pt-2.5 text-base font-bold text-foreground">
+                        <span>Total</span>
+                        <motion.span
+                            key={activeOrder.total_cents}
+                            initial={{ scale: 1.06 }}
+                            animate={{ scale: 1 }}
+                            transition={{ duration: 0.2 }}
+                            className="ds-num-md text-foreground"
+                        >
+                            {formatCents(activeOrder.total_cents)}
+                        </motion.span>
+                    </div>
+                </div>
+
+                <div className="space-y-2.5 pt-1">
+                    {activeOrder.state === 'billing' && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={() =>
+                                router.post(
+                                    `/billing/orders/${activeOrder.id}/reopen`,
+                                    {},
+                                    { preserveScroll: true },
+                                )
+                            }
+                        >
+                            Reopen Order to Add Items
+                        </Button>
+                    )}
+
+                    {draftItems.length > 0 && canModifyItems && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="lg"
+                            className="w-full border-primary/40 text-primary hover:bg-accent"
+                            onClick={() =>
+                                router.post(
+                                    `/pos/orders/${activeOrder.id}/fire`,
+                                    {},
+                                    { preserveScroll: true },
+                                )
+                            }
+                        >
+                            <Flame className="h-4 w-4" />
+                            <span>Send to Kitchen ({draftItems.length} draft)</span>
+                        </Button>
+                    )}
+
+                    <Button
+                        type="button"
+                        size="lg"
+                        disabled={draftItems.length > 0 || firedItems.length === 0}
+                        onClick={handleOpenCharge}
+                        className="w-full"
+                    >
+                        {activeOrder.state === 'billing' || activeOrder.state === 'partially_paid' ? (
+                            <>
+                                <Receipt className="h-4 w-4" />
+                                <span>Settle Payment · {formatCents(activeOrder.total_cents)}</span>
+                            </>
+                        ) : (
+                            <>
+                                <CheckCircle2 className="h-4 w-4" />
+                                <span>Charge {formatCents(activeOrder.total_cents)}</span>
+                            </>
+                        )}
+                    </Button>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <PosAppLayout
             title="POS Register"
-            subtitle="Tap menu items to add to the check, send rounds to kitchen stations, and settle payments."
+            subtitle="Ring items onto live table tabs, fire tickets to kitchen lines, and settle checks."
         >
             <Head title="POS Register — Aurelia POS" />
 
-            <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3 shadow-2xs">
-                    <div className="flex flex-1 items-center gap-2 overflow-x-auto">
+            <div className="space-y-5 pb-24 lg:pb-0">
+                {/* Active Order Switcher Strip */}
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-bistro-card">
+                    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto no-scrollbar">
                         {activeOrders.map((order) => {
                             const selected = activeOrder?.id === order.id;
                             return (
@@ -226,25 +550,26 @@ export default function PosPage({
                                     key={order.id}
                                     type="button"
                                     onClick={() => setSelectedOrderId(order.id)}
-                                    className={`shrink-0 rounded-xl border px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                                    className={cn(
+                                        'shrink-0 inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition cursor-pointer',
                                         selected
-                                            ? 'border-primary bg-orange-50 text-orange-700 ring-1 ring-primary/30'
-                                            : 'border-border bg-background text-stone-700 hover:bg-muted'
-                                    }`}
+                                            ? 'border-primary bg-accent text-primary ring-1 ring-primary/25'
+                                            : 'border-border bg-[var(--surface-inset)] text-stone-700 hover:bg-secondary/70',
+                                    )}
                                 >
-                                    <span>{order.order_number}</span>
-                                    <span className="ml-1.5 text-muted-foreground">
+                                    <span className="font-mono">{order.order_number}</span>
+                                    <span className="text-muted-foreground">
                                         {order.table_code ? `T-${order.table_code}` : order.customer_name || 'TA'}
                                     </span>
-                                    <span className="ml-1.5 font-mono font-bold">
+                                    <span className="font-mono font-bold text-foreground tabular-nums">
                                         {formatCents(order.total_cents)}
                                     </span>
                                 </button>
                             );
                         })}
                         {activeOrders.length === 0 && (
-                            <span className="px-2 text-xs text-muted-foreground">
-                                No active open orders — click + New Order to start.
+                            <span className="px-2 ds-caption">
+                                No active open orders — tap New Order to open a tab.
                             </span>
                         )}
                     </div>
@@ -252,68 +577,51 @@ export default function PosPage({
                     <Button
                         type="button"
                         onClick={() => setNewOrderOpen(true)}
-                        className="shrink-0 rounded-xl font-semibold"
+                        className="shrink-0"
                     >
                         <Plus className="h-4 w-4" />
-                        New Order
+                        <span>New Order</span>
                     </Button>
                 </div>
 
-                <div className="grid gap-5 md:grid-cols-12">
-                    <div className="space-y-4 md:col-span-7 xl:col-span-8">
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3.5">
-                            <div className="flex flex-wrap gap-1.5">
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveCategorySlug('all')}
-                                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
-                                        activeCategorySlug === 'all'
-                                            ? 'bg-primary text-primary-foreground shadow-2xs'
-                                            : 'bg-muted text-stone-700 hover:bg-orange-50'
-                                    }`}
-                                >
-                                    All Menu
-                                </button>
-                                {catalog.map((category) => (
-                                    <button
-                                        key={category.id}
-                                        type="button"
-                                        onClick={() => setActiveCategorySlug(category.slug)}
-                                        className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
-                                            activeCategorySlug === category.slug
-                                                ? 'bg-primary text-primary-foreground shadow-2xs'
-                                                : 'bg-muted text-stone-700 hover:bg-orange-50'
-                                        }`}
-                                    >
-                                        {category.name} ({category.items.length})
-                                    </button>
-                                ))}
-                            </div>
+                {/* Main Split Workspace */}
+                <div className="grid gap-6 lg:grid-cols-12 items-start">
+                    {/* Left Menu Explorer */}
+                    <div className="space-y-4 lg:col-span-7 xl:col-span-8 min-w-0">
+                        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-bistro-card xl:flex-row xl:items-center xl:justify-between">
+                            <AnimatedTabs
+                                items={categoryTabs}
+                                value={activeCategorySlug}
+                                onChange={setActiveCategorySlug}
+                                layoutId="pos-menu-categories"
+                            />
 
-                            <div className="relative w-full sm:w-56">
+                            <div className="relative w-full xl:w-60 shrink-0">
                                 <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                                 <input
                                     type="search"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     placeholder="Search dish or SKU..."
-                                    className="w-full rounded-xl border border-input bg-background py-1.5 pr-3 pl-8 text-xs focus:border-primary focus:outline-none"
+                                    className="h-10 w-full rounded-xl border border-input bg-[var(--surface-inset)] pr-3 pl-9 text-xs focus:border-primary focus:bg-card focus:outline-none"
                                 />
                             </div>
                         </div>
 
-                        <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+                        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
                             {visibleItems.map((item) => {
                                 const availableVariants = item.variants.filter((v) => v.is_available);
                                 const isSoldOut = availableVariants.length === 0;
                                 const leadVariant = availableVariants[0] ?? item.variants[0];
 
                                 return (
-                                    <div
+                                    <Card
                                         key={item.id}
-                                        className={`group flex flex-col justify-between rounded-2xl border border-border bg-card p-3.5 shadow-2xs transition ${
-                                            isSoldOut ? 'opacity-65' : 'hover:border-orange-300 hover:shadow-md'
-                                        }`}
+                                        variant={isSoldOut ? 'default' : 'interactive'}
+                                        className={cn(
+                                            'group flex flex-col justify-between p-3.5',
+                                            isSoldOut && 'opacity-65',
+                                        )}
                                     >
                                         <div>
                                             <div className="relative">
@@ -321,34 +629,35 @@ export default function PosPage({
                                                     imagePath={item.image_path}
                                                     name={item.name}
                                                     station={item.prep_station}
-                                                    className="h-32 w-full"
+                                                    slug={item.slug}
+                                                    className="aspect-[16/10] w-full"
                                                 />
                                                 {isSoldOut && (
-                                                    <Badge variant="destructive" className="absolute top-2 right-2">
-                                                        Out of Stock
-                                                    </Badge>
+                                                    <div className="absolute top-2.5 right-2.5">
+                                                        <StatusPill tone="danger" dot={false} label="Out of Stock" />
+                                                    </div>
                                                 )}
                                             </div>
 
-                                            <div className="mt-3">
+                                            <div className="mt-3.5">
                                                 <div className="flex items-start justify-between gap-2">
-                                                    <h3 className="text-sm font-bold leading-snug">{item.name}</h3>
+                                                    <h3 className="ds-card-title leading-snug text-foreground">
+                                                        {item.name}
+                                                    </h3>
                                                     {leadVariant && (
-                                                        <span className="shrink-0 font-mono text-sm font-bold text-primary">
+                                                        <span className="ds-num-sm shrink-0 text-primary">
                                                             {formatCents(leadVariant.effective_price_cents)}
                                                         </span>
                                                     )}
                                                 </div>
-                                                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                                                    {item.description}
-                                                </p>
+                                                <p className="ds-caption mt-1 line-clamp-2">{item.description}</p>
                                             </div>
                                         </div>
 
-                                        <div className="mt-3 flex items-center justify-between gap-2 pt-2 border-t border-border/60">
-                                            <span className="text-[11px] font-medium text-muted-foreground">
+                                        <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-border/60 pt-3">
+                                            <span className="truncate text-[11px] font-medium text-muted-foreground">
                                                 {item.variants.length > 1
-                                                    ? `${item.variants.length} sizes`
+                                                    ? `${item.variants.length} portions`
                                                     : item.prep_station_label}
                                             </span>
                                             <Button
@@ -356,278 +665,92 @@ export default function PosPage({
                                                 size="sm"
                                                 disabled={!activeOrder || !canModifyItems || isSoldOut}
                                                 onClick={() => handleQuickAddOrConfigure(item)}
-                                                className="rounded-xl"
                                             >
                                                 <Plus className="h-3.5 w-3.5" />
-                                                {item.modifier_groups.length > 0 || item.variants.length > 1
-                                                    ? 'Customize'
-                                                    : 'Add'}
+                                                <span>
+                                                    {item.modifier_groups.length > 0 || item.variants.length > 1
+                                                        ? 'Customize'
+                                                        : 'Add'}
+                                                </span>
                                             </Button>
                                         </div>
-                                    </div>
+                                    </Card>
                                 );
                             })}
                         </div>
                     </div>
 
-                    <div className="md:col-span-5 xl:col-span-4">
-                        <div className="sticky top-20 flex flex-col justify-between rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4">
-                            {!activeOrder ? (
-                                <div className="space-y-3 py-16 text-center">
-                                    <ShoppingBag className="mx-auto h-10 w-10 text-muted-foreground/60" />
-                                    <div className="text-base font-bold">No Active Order Selected</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Open a dine-in table or quick takeaway tab to start ringing items.
-                                    </p>
-                                    <Button type="button" onClick={() => setNewOrderOpen(true)}>
-                                        <Plus className="h-4 w-4" />
-                                        Create Order
-                                    </Button>
-                                </div>
-                            ) : (
-                                <>
-                                    <div className="flex items-start justify-between border-b border-border pb-3">
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <h2 className="text-base font-bold">{activeOrder.order_number}</h2>
-                                                <Badge variant="outline">{activeOrder.state}</Badge>
-                                            </div>
-                                            <p className="mt-0.5 text-xs text-muted-foreground">
-                                                {activeOrder.table_code
-                                                    ? `Table ${activeOrder.table_code} (${activeOrder.guest_count} guests)`
-                                                    : activeOrder.customer_name || 'Takeaway Order'}
-                                            </p>
-                                        </div>
-                                        {activeOrder.table_id && canModifyItems && (
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => setTransferOpen(true)}
-                                            >
-                                                <ArrowRightLeft className="h-3.5 w-3.5" />
-                                                Move
-                                            </Button>
-                                        )}
-                                    </div>
-
-                                    <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
-                                        {draftItems.length > 0 && (
-                                            <div className="space-y-2">
-                                                <div className="text-[11px] font-bold uppercase text-orange-700">
-                                                    Draft Cart ({draftItems.length})
-                                                </div>
-                                                {draftItems.map((item) => (
-                                                    <div
-                                                        key={item.id}
-                                                        className="flex items-start justify-between gap-2 rounded-xl border border-orange-200 bg-orange-50/50 p-2.5 text-xs"
-                                                    >
-                                                        <div className="min-w-0">
-                                                            <div className="font-semibold">
-                                                                {item.quantity}× {item.item_name} ({item.variant_name})
-                                                            </div>
-                                                            {item.modifiers.length > 0 && (
-                                                                <div className="text-[11px] text-muted-foreground">
-                                                                    {item.modifiers.map((m) => m.name).join(', ')}
-                                                                </div>
-                                                            )}
-                                                            {item.special_instructions && (
-                                                                <div className="italic text-orange-800">
-                                                                    “{item.special_instructions}”
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-mono font-bold">
-                                                                {formatCents(item.line_total_cents)}
-                                                            </span>
-                                                            {canModifyItems && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        router.delete(`/pos/order-items/${item.id}`, {
-                                                                            preserveScroll: true,
-                                                                        })
-                                                                    }
-                                                                    className="text-rose-600 hover:text-rose-700 cursor-pointer"
-                                                                    aria-label="Remove item"
-                                                                >
-                                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {firedItems.length > 0 && (
-                                            <div className="space-y-2">
-                                                <div className="text-[11px] font-bold uppercase text-muted-foreground">
-                                                    Sent to Kitchen ({firedItems.length})
-                                                </div>
-                                                {firedItems.map((item) => (
-                                                    <div
-                                                        key={item.id}
-                                                        className="flex items-start justify-between gap-2 rounded-xl border border-border bg-muted/30 p-2.5 text-xs"
-                                                    >
-                                                        <div className="min-w-0">
-                                                            <div className="flex items-center gap-1.5 font-medium">
-                                                                <span>
-                                                                    {item.quantity}× {item.item_name}
-                                                                </span>
-                                                                <Badge variant="outline" className="text-[10px]">
-                                                                    {item.prep_state}
-                                                                </Badge>
-                                                            </div>
-                                                            {item.modifiers.length > 0 && (
-                                                                <div className="text-[11px] text-muted-foreground">
-                                                                    {item.modifiers.map((m) => m.name).join(', ')}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex flex-col items-end gap-1">
-                                                            <span className="font-mono font-semibold">
-                                                                {formatCents(item.line_total_cents)}
-                                                            </span>
-                                                            {canModifyItems && item.prep_state !== 'served' && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setPinError(null);
-                                                                        setPinModalState({ type: 'void', item });
-                                                                    }}
-                                                                    className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-rose-600 hover:underline cursor-pointer"
-                                                                >
-                                                                    <Ban className="h-3 w-3" /> Void
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {canModifyItems && (
-                                        <div className="space-y-1.5 border-t border-border pt-3">
-                                            <div className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground uppercase">
-                                                <Percent className="h-3 w-3" /> Discount
-                                            </div>
-                                            <div className="grid grid-cols-3 gap-1.5">
-                                                {[
-                                                    { label: 'None', bps: 0 },
-                                                    { label: '10%', bps: 1000 },
-                                                    { label: '20% (PIN)', bps: 2000 },
-                                                ].map((opt) => (
-                                                    <button
-                                                        key={opt.bps}
-                                                        type="button"
-                                                        onClick={() => handleDiscountClick(opt.bps)}
-                                                        className={`rounded-lg border py-1.5 text-xs font-semibold cursor-pointer ${
-                                                            activeOrder.discount_bps === opt.bps
-                                                                ? 'border-primary bg-orange-50 text-orange-700'
-                                                                : 'border-border bg-background hover:bg-muted'
-                                                        }`}
-                                                    >
-                                                        {opt.label}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="space-y-1.5 border-t border-border pt-3 text-xs">
-                                        <div className="flex justify-between text-muted-foreground">
-                                            <span>Subtotal</span>
-                                            <span className="font-mono">{formatCents(activeOrder.subtotal_cents)}</span>
-                                        </div>
-                                        {activeOrder.discount_cents > 0 && (
-                                            <div className="flex justify-between text-emerald-700">
-                                                <span>Discount</span>
-                                                <span className="font-mono">
-                                                    -{formatCents(activeOrder.discount_cents)}
-                                                </span>
-                                            </div>
-                                        )}
-                                        <div className="flex justify-between text-muted-foreground">
-                                            <span>Service Charge</span>
-                                            <span className="font-mono">
-                                                {formatCents(activeOrder.service_charge_cents)}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between text-muted-foreground">
-                                            <span>Tax</span>
-                                            <span className="font-mono">{formatCents(activeOrder.tax_cents)}</span>
-                                        </div>
-                                        <div className="flex justify-between border-t border-border pt-2 text-base font-bold">
-                                            <span>Total</span>
-                                            <span className="font-mono">{formatCents(activeOrder.total_cents)}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2 pt-1">
-                                        {activeOrder.state === 'billing' && (
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                className="w-full rounded-xl"
-                                                onClick={() =>
-                                                    router.post(
-                                                        `/billing/orders/${activeOrder.id}/reopen`,
-                                                        {},
-                                                        { preserveScroll: true },
-                                                    )
-                                                }
-                                            >
-                                                Reopen Order to Add Items
-                                            </Button>
-                                        )}
-
-                                        {draftItems.length > 0 && canModifyItems && (
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                className="w-full rounded-xl py-5 font-semibold border-orange-300 text-orange-700 hover:bg-orange-50"
-                                                onClick={() =>
-                                                    router.post(
-                                                        `/pos/orders/${activeOrder.id}/fire`,
-                                                        {},
-                                                        { preserveScroll: true },
-                                                    )
-                                                }
-                                            >
-                                                <Flame className="h-4 w-4" />
-                                                Send to Kitchen ({draftItems.length} draft)
-                                            </Button>
-                                        )}
-
-                                        <Button
-                                            type="button"
-                                            disabled={draftItems.length > 0 || firedItems.length === 0}
-                                            onClick={handleOpenCharge}
-                                            className="w-full rounded-xl py-5 text-sm font-bold"
-                                        >
-                                            {activeOrder.state === 'billing' || activeOrder.state === 'partially_paid' ? (
-                                                <>
-                                                    <Receipt className="h-4 w-4" />
-                                                    Settle Payment · {formatCents(activeOrder.total_cents)}
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <CheckCircle2 className="h-4 w-4" />
-                                                    Charge {formatCents(activeOrder.total_cents)}
-                                                </>
-                                            )}
-                                        </Button>
-                                    </div>
-                                </>
-                            )}
-                        </div>
+                    {/* Desktop Sticky Order Ticket Rail */}
+                    <div className="hidden lg:block lg:col-span-5 xl:col-span-4">
+                        <Card className="sticky top-20 p-5 shadow-bistro-card">
+                            {renderOrderDetail()}
+                        </Card>
                     </div>
                 </div>
             </div>
+
+            {/* Mobile & Portrait Tablet Floating Bottom Order Bar (<lg) */}
+            <div className="fixed inset-x-4 bottom-4 z-30 lg:hidden">
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-[#181512] px-4 py-3 text-white shadow-bistro-floating">
+                    {activeOrder ? (
+                        <>
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2 text-xs text-stone-300">
+                                    <span className="font-mono font-semibold text-amber-400">
+                                        {activeOrder.order_number}
+                                    </span>
+                                    <span>·</span>
+                                    <span>{totalTicketItems} items</span>
+                                </div>
+                                <div className="ds-num-md text-white">
+                                    {formatCents(activeOrder.total_cents)}
+                                </div>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="amber"
+                                size="default"
+                                onClick={() => setMobileCartOpen(true)}
+                                className="shrink-0"
+                            >
+                                <ChevronUp className="h-4 w-4" />
+                                <span>View Ticket</span>
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <div className="min-w-0 text-xs text-stone-300">
+                                No open tab selected for this station.
+                            </div>
+                            <Button
+                                type="button"
+                                variant="amber"
+                                size="sm"
+                                onClick={() => setNewOrderOpen(true)}
+                                className="shrink-0"
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                                <span>New Order</span>
+                            </Button>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Mobile & Tablet Order Cart Drawer */}
+            <MotionDrawer
+                open={mobileCartOpen}
+                onClose={() => setMobileCartOpen(false)}
+                side="bottom"
+                title={activeOrder ? `Ticket ${activeOrder.order_number}` : 'Order Ticket'}
+                description={
+                    activeOrder?.table_code
+                        ? `Table ${activeOrder.table_code} · ${activeOrder.guest_count} guests`
+                        : activeOrder?.customer_name || 'Takeaway Order'
+                }
+            >
+                <div className="p-5 pb-8">{renderOrderDetail()}</div>
+            </MotionDrawer>
 
             <NewOrderModal open={newOrderOpen} zones={zones} onClose={() => setNewOrderOpen(false)} />
             <ModifierSheet item={modifierItem} onClose={() => setModifierItem(null)} onAdd={handleAddConfigured} />
@@ -661,7 +784,11 @@ export default function PosPage({
 
             <ManagerPinModal
                 open={pinModalState !== null}
-                title={pinModalState?.type === 'void' ? 'Manager PIN — Void Sent Item' : 'Manager PIN — Discount Approval'}
+                title={
+                    pinModalState?.type === 'void'
+                        ? 'Manager PIN — Void Sent Item'
+                        : 'Manager PIN — Discount Approval'
+                }
                 description={
                     pinModalState?.type === 'void'
                         ? `Authorize voiding "${pinModalState.item.item_name}".`
