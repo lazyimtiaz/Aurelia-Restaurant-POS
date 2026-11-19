@@ -6,3 +6,4 @@ export { MotionModal, MotionDrawer, type ModalMaxWidth } from './MotionOverlay';
 export { FloatingToaster, dispatchToast } from './FloatingToaster';
 export { PinKeypad } from './PinKeypad';
 export { DishArtwork } from './DishArtwork';
+export { AnimatedTabs, type AnimatedTabItem } from '@/components/ui/tabs';

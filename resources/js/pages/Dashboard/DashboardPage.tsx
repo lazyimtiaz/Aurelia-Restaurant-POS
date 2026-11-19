@@ -1,22 +1,24 @@
+import { useMemo, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { motion } from 'motion/react';
 import {
     AlertCircle,
     ArrowRight,
     DollarSign,
+    Flame,
     ShoppingBag,
     ShoppingCart,
     TrendingUp,
     Utensils,
 } from 'lucide-react';
-import { PosAppLayout } from '@/layouts/PosAppLayout';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatCard, StatusPill } from '@/design-system';
 import { useBranchEcho } from '@/hooks/useBranchEcho';
 import { formatBps, formatCents } from '@/lib/money';
+import { PosAppLayout } from '@/layouts/PosAppLayout';
+import type { ExecutiveDashboardMetricsData } from '@/types/executive';
 import type { ActiveOrderData } from '@/types/pos';
 import type { PosSharedProps } from '@/types/pos-app';
-import type { ExecutiveDashboardMetricsData } from '@/types/executive';
 
 interface SalesCategoryRow {
     categoryId: number;
@@ -54,7 +56,28 @@ interface DashboardPageProps {
     overview: DashboardOverviewData;
 }
 
-const CATEGORY_COLORS = ['#ea580c', '#16a34a', '#f59e0b', '#0ea5e9', '#8b5cf6'];
+const CATEGORY_COLORS = ['#EA580C', '#16A34A', '#F59E0B', '#0284C7', '#8B5CF6'];
+
+function buildSmoothCurvePath(points: { x: number; y: number }[]): string {
+    if (points.length === 0) return '';
+    if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+
+    let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    for (let i = 0; i < points.length - 1; i++) {
+        const p0 = points[Math.max(0, i - 1)];
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        const p3 = points[Math.min(points.length - 1, i + 2)];
+
+        const cp1x = p1.x + (p2.x - p0.x) / 6;
+        const cp1y = p1.y + (p2.y - p0.y) / 6;
+        const cp2x = p2.x - (p3.x - p1.x) / 6;
+        const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+        d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+    }
+    return d;
+}
 
 export default function DashboardPage({ overview }: DashboardPageProps) {
     const { auth } = usePage<PosSharedProps>().props;
@@ -65,38 +88,74 @@ export default function DashboardPage({ overview }: DashboardPageProps) {
         router.reload({ only: ['overview'] });
     });
 
-    const { metrics, dineInOrdersCount, takeawayOrdersCount, salesByCategory, tableStatusCounts, liveOrders, outOfStockItems } =
-        overview;
+    const {
+        metrics,
+        dineInOrdersCount,
+        takeawayOrdersCount,
+        salesByCategory,
+        tableStatusCounts,
+        liveOrders,
+        outOfStockItems,
+    } = overview;
 
-    const chartPoints = metrics.hourlySales.filter((p) => p.hour >= 8 && p.hour <= 23);
+    const chartPoints = useMemo(
+        () => metrics.hourlySales.filter((p) => p.hour >= 8 && p.hour <= 23),
+        [metrics.hourlySales],
+    );
     const maxHourlyRev = Math.max(1000, ...chartPoints.map((p) => p.revenueCents));
-    const peakPoint = chartPoints.reduce(
-        (best, cur) => (cur.revenueCents > best.revenueCents ? cur : best),
-        chartPoints[0] ?? { hour: 12, label: '12:00', revenueCents: 0, ordersCount: 0 },
+    const peakIdx = useMemo(() => {
+        let bestIdx = 0;
+        chartPoints.forEach((pt, idx) => {
+            if (pt.revenueCents > (chartPoints[bestIdx]?.revenueCents ?? 0)) {
+                bestIdx = idx;
+            }
+        });
+        return bestIdx;
+    }, [chartPoints]);
+
+    const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+    const activeIdx = hoveredIdx ?? peakIdx;
+
+    const svgW = 580;
+    const svgH = 186;
+    const padX = 18;
+    const topPad = 24;
+    const bottomPad = 26;
+
+    const coords = useMemo(
+        () =>
+            chartPoints.map((pt, idx) => {
+                const x = (idx / Math.max(1, chartPoints.length - 1)) * (svgW - padX * 2) + padX;
+                const y =
+                    svgH - bottomPad - (pt.revenueCents / maxHourlyRev) * (svgH - topPad - bottomPad);
+                return { x, y, pt };
+            }),
+        [chartPoints, maxHourlyRev],
     );
 
-    const svgW = 560;
-    const svgH = 160;
-    const coords = chartPoints.map((pt, idx) => {
-        const x = (idx / Math.max(1, chartPoints.length - 1)) * (svgW - 24) + 12;
-        const y = svgH - 18 - (pt.revenueCents / maxHourlyRev) * (svgH - 42);
-        return { x, y, pt };
-    });
-
-    const linePath = coords
-        .map((c, idx) => `${idx === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`)
-        .join(' ');
-    const areaPath =
+    const smoothLine = useMemo(() => buildSmoothCurvePath(coords), [coords]);
+    const smoothArea =
         coords.length > 0
-            ? `${linePath} L ${coords[coords.length - 1].x.toFixed(1)} ${svgH - 18} L ${coords[0].x.toFixed(1)} ${svgH - 18} Z`
+            ? `${smoothLine} L ${coords[coords.length - 1].x.toFixed(1)} ${svgH - bottomPad} L ${coords[0].x.toFixed(1)} ${svgH - bottomPad} Z`
             : '';
+
+    const activePoint = coords[activeIdx];
+    const peakPoint = chartPoints[peakIdx] ?? {
+        hour: 12,
+        label: '12:00',
+        revenueCents: 0,
+        ordersCount: 0,
+    };
+
+    const sparkValues = chartPoints.slice(-8).map((p) => p.revenueCents);
+    const orderSparkValues = chartPoints.slice(-8).map((p) => p.ordersCount);
 
     const totalTables = Math.max(1, tableStatusCounts.total);
     const tableSegments = [
-        { label: 'Occupied', count: tableStatusCounts.occupied, color: '#ea580c' },
-        { label: 'Reserved', count: tableStatusCounts.reserved, color: '#f59e0b' },
-        { label: 'Available', count: tableStatusCounts.available, color: '#16a34a' },
-        { label: 'Cleaning', count: tableStatusCounts.dirty, color: '#a8a29e' },
+        { label: 'Occupied', count: tableStatusCounts.occupied, color: '#EA580C' },
+        { label: 'Reserved', count: tableStatusCounts.reserved, color: '#F59E0B' },
+        { label: 'Available', count: tableStatusCounts.available, color: '#16A34A' },
+        { label: 'Cleaning', count: tableStatusCounts.dirty, color: '#A8A29E' },
     ];
 
     const donutCircumference = 2 * Math.PI * 46;
@@ -106,159 +165,221 @@ export default function DashboardPage({ overview }: DashboardPageProps) {
     return (
         <PosAppLayout
             title={`Welcome back, ${staffName}`}
-            subtitle={`Here is what is happening at ${auth?.activeBranch.name ?? 'your restaurant'} today.`}
+            subtitle={`Live snapshot of ${auth?.activeBranch.name ?? 'your restaurant'} operations today.`}
         >
             <Head title="Dashboard — Aurelia POS" />
 
             <div className="space-y-6">
+                {/* KPI Cards Row */}
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                        <Card className="rounded-2xl">
-                            <CardContent className="flex items-center gap-4 p-5">
-                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
-                                    <DollarSign className="h-5 w-5" />
-                                </div>
-                                <div className="min-w-0">
-                                    <div className="text-xs font-medium text-muted-foreground">Revenue</div>
-                                    <div className="font-mono text-2xl font-bold tracking-tight">
-                                        {formatCents(metrics.totalRevenueCents)}
-                                    </div>
-                                    <div className="text-[11px] text-muted-foreground">
-                                        AOV {formatCents(metrics.averageOrderValueCents)}
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-
-                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 }}>
-                        <Card className="rounded-2xl">
-                            <CardContent className="flex items-center gap-4 p-5">
-                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                                    <ShoppingCart className="h-5 w-5" />
-                                </div>
-                                <div className="min-w-0">
-                                    <div className="text-xs font-medium text-muted-foreground">Paid Orders</div>
-                                    <div className="font-mono text-2xl font-bold tracking-tight">
-                                        {metrics.totalOrdersCount}
-                                    </div>
-                                    <div className="text-[11px] text-muted-foreground">
-                                        COGS {formatBps(metrics.cogsPercentBps)}
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-
-                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
-                        <Card className="rounded-2xl">
-                            <CardContent className="flex items-center gap-4 p-5">
-                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
-                                    <Utensils className="h-5 w-5" />
-                                </div>
-                                <div className="min-w-0">
-                                    <div className="text-xs font-medium text-muted-foreground">Dine-In Tabs</div>
-                                    <div className="font-mono text-2xl font-bold tracking-tight">
-                                        {dineInOrdersCount}
-                                    </div>
-                                    <div className="text-[11px] text-muted-foreground">
-                                        {tableStatusCounts.occupied} of {tableStatusCounts.total} tables seated
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-
-                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
-                        <Card className="rounded-2xl">
-                            <CardContent className="flex items-center gap-4 p-5">
-                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                                    <ShoppingBag className="h-5 w-5" />
-                                </div>
-                                <div className="min-w-0">
-                                    <div className="text-xs font-medium text-muted-foreground">Takeaway Orders</div>
-                                    <div className="font-mono text-2xl font-bold tracking-tight">
-                                        {takeawayOrdersCount}
-                                    </div>
-                                    <div className="text-[11px] text-muted-foreground">
-                                        Voids {formatCents(metrics.totalVoidsCents)}
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
+                    <StatCard
+                        label="Today Revenue"
+                        value={formatCents(metrics.totalRevenueCents)}
+                        icon={<DollarSign className="h-4.5 w-4.5" />}
+                        tone="orange"
+                        subtitle={`Avg check ${formatCents(metrics.averageOrderValueCents)}`}
+                        sparkline={sparkValues}
+                    />
+                    <StatCard
+                        label="Paid Orders"
+                        value={metrics.totalOrdersCount}
+                        icon={<ShoppingCart className="h-4.5 w-4.5" />}
+                        tone="emerald"
+                        subtitle={`Food cost ${formatBps(metrics.cogsPercentBps)}`}
+                        sparkline={orderSparkValues}
+                    />
+                    <StatCard
+                        label="Dine-In Tabs"
+                        value={dineInOrdersCount}
+                        icon={<Utensils className="h-4.5 w-4.5" />}
+                        tone="rose"
+                        subtitle={`${tableStatusCounts.occupied} of ${tableStatusCounts.total} tables seated`}
+                    />
+                    <StatCard
+                        label="Takeaway Queue"
+                        value={takeawayOrdersCount}
+                        icon={<ShoppingBag className="h-4.5 w-4.5" />}
+                        tone="amber"
+                        subtitle={`Voids today ${formatCents(metrics.totalVoidsCents)}`}
+                    />
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-3">
-                    <Card className="rounded-2xl lg:col-span-2">
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <div>
-                                <CardTitle className="flex items-center gap-2 text-base">
+                {/* Primary Analytical Charts */}
+                <div className="grid gap-5 lg:grid-cols-3">
+                    <Card className="lg:col-span-2 overflow-hidden">
+                        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 bg-[var(--surface-inset)]/60">
+                            <div className="min-w-0">
+                                <CardTitle className="flex items-center gap-2">
                                     <TrendingUp className="h-4 w-4 text-primary" />
-                                    Daily Sales Throughput
+                                    <span>Daily Sales Throughput</span>
                                 </CardTitle>
-                                <CardDescription>Hourly revenue distribution (08:00 – 23:00)</CardDescription>
+                                <CardDescription>
+                                    Hourly revenue distribution (08:00 – 23:00) · Hover points to inspect
+                                </CardDescription>
                             </div>
-                            <Badge variant="warning" className="font-mono">
-                                Peak {peakPoint.label} · {formatCents(peakPoint.revenueCents)}
-                            </Badge>
+                            <StatusPill
+                                tone="warning"
+                                dot={false}
+                                label={`Peak ${peakPoint.label} · ${formatCents(peakPoint.revenueCents)}`}
+                                className="font-mono self-start sm:self-center"
+                            />
                         </CardHeader>
-                        <CardContent>
-                            <svg viewBox={`0 0 ${svgW} ${svgH}`} className="h-48 w-full" role="img" aria-label="Daily Sales Area Chart">
+
+                        <CardContent className="p-4 sm:p-6">
+                            <svg
+                                viewBox={`0 0 ${svgW} ${svgH}`}
+                                className="h-52 w-full overflow-visible select-none"
+                                role="img"
+                                aria-label="Daily Sales Area Chart"
+                                onMouseLeave={() => setHoveredIdx(null)}
+                            >
                                 <defs>
-                                    <linearGradient id="dailySalesGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#ea580c" stopOpacity="0.28" />
-                                        <stop offset="100%" stopColor="#ea580c" stopOpacity="0.02" />
+                                    <linearGradient id="bistroSalesFill" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#EA580C" stopOpacity="0.28" />
+                                        <stop offset="100%" stopColor="#EA580C" stopOpacity="0.01" />
                                     </linearGradient>
                                 </defs>
-                                {areaPath && <path d={areaPath} fill="url(#dailySalesGrad)" />}
-                                {linePath && (
-                                    <path
-                                        d={linePath}
+
+                                {/* Dashed Y-grid lines */}
+                                {[0.25, 0.5, 0.75, 1].map((ratio) => {
+                                    const gy = svgH - bottomPad - ratio * (svgH - topPad - bottomPad);
+                                    return (
+                                        <line
+                                            key={ratio}
+                                            x1={padX}
+                                            x2={svgW - padX}
+                                            y1={gy}
+                                            y2={gy}
+                                            stroke="#EAE4DB"
+                                            strokeDasharray="4 4"
+                                            strokeWidth="1"
+                                        />
+                                    );
+                                })}
+
+                                {/* Area Fill */}
+                                {smoothArea && <path d={smoothArea} fill="url(#bistroSalesFill)" />}
+
+                                {/* Smooth Curve */}
+                                {smoothLine && (
+                                    <motion.path
+                                        initial={{ pathLength: 0, opacity: 0.6 }}
+                                        animate={{ pathLength: 1, opacity: 1 }}
+                                        transition={{ duration: 0.65, ease: 'easeOut' }}
+                                        d={smoothLine}
                                         fill="none"
-                                        stroke="#ea580c"
-                                        strokeWidth="2.5"
+                                        stroke="#EA580C"
+                                        strokeWidth="2.8"
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
                                     />
                                 )}
-                                {coords.map(({ x, y, pt }, idx) => (
-                                    <g key={pt.hour}>
-                                        {pt.revenueCents > 0 && (
-                                            <circle cx={x} cy={y} r={4} fill="#ea580c" stroke="#ffffff" strokeWidth="2" />
-                                        )}
-                                        {idx % 3 === 0 && (
-                                            <text
-                                                x={x}
-                                                y={svgH - 2}
-                                                textAnchor="middle"
-                                                className="fill-muted-foreground text-[10px] font-mono"
-                                            >
-                                                {pt.label}
-                                            </text>
-                                        )}
+
+                                {/* Vertical Active Indicator */}
+                                {activePoint && (
+                                    <line
+                                        x1={activePoint.x}
+                                        x2={activePoint.x}
+                                        y1={topPad - 4}
+                                        y2={svgH - bottomPad}
+                                        stroke="#EA580C"
+                                        strokeOpacity="0.28"
+                                        strokeDasharray="3 3"
+                                        strokeWidth="1.2"
+                                    />
+                                )}
+
+                                {/* Interactive Data Nodes */}
+                                {coords.map(({ x, y, pt }, idx) => {
+                                    const isActive = idx === activeIdx;
+                                    return (
+                                        <g
+                                            key={pt.hour}
+                                            onMouseEnter={() => setHoveredIdx(idx)}
+                                            className="cursor-pointer"
+                                        >
+                                            <rect
+                                                x={x - 16}
+                                                y={0}
+                                                width={32}
+                                                height={svgH - bottomPad}
+                                                fill="transparent"
+                                            />
+                                            {(pt.revenueCents > 0 || isActive) && (
+                                                <circle
+                                                    cx={x}
+                                                    cy={y}
+                                                    r={isActive ? 5.5 : 3.5}
+                                                    fill={isActive ? '#EA580C' : '#FFFFFF'}
+                                                    stroke="#EA580C"
+                                                    strokeWidth={isActive ? 2.5 : 2}
+                                                />
+                                            )}
+                                            {idx % 3 === 0 && (
+                                                <text
+                                                    x={x}
+                                                    y={svgH - 6}
+                                                    textAnchor="middle"
+                                                    className="fill-muted-foreground text-[10px] font-mono"
+                                                >
+                                                    {pt.label}
+                                                </text>
+                                            )}
+                                        </g>
+                                    );
+                                })}
+
+                                {/* Floating Tooltip Pill */}
+                                {activePoint && (
+                                    <g
+                                        transform={`translate(${Math.min(svgW - 122, Math.max(12, activePoint.x - 55))}, ${Math.max(2, activePoint.y - 34)})`}
+                                    >
+                                        <rect
+                                            width="112"
+                                            height="24"
+                                            rx="12"
+                                            fill="#181512"
+                                        />
+                                        <text
+                                            x="56"
+                                            y="15.5"
+                                            textAnchor="middle"
+                                            className="fill-white text-[10px] font-mono font-semibold"
+                                        >
+                                            {activePoint.pt.label} · {formatCents(activePoint.pt.revenueCents)}
+                                        </text>
                                     </g>
-                                ))}
+                                )}
                             </svg>
                         </CardContent>
                     </Card>
 
-                    <Card className="rounded-2xl">
-                        <CardHeader>
-                            <CardTitle className="text-base">Sales by Category</CardTitle>
-                            <CardDescription>Share of paid dish revenue</CardDescription>
+                    <Card>
+                        <CardHeader className="border-b border-border/60 bg-[var(--surface-inset)]/60">
+                            <CardTitle>Sales by Category</CardTitle>
+                            <CardDescription>Share of paid culinary revenue</CardDescription>
                         </CardHeader>
-                        <CardContent className="flex flex-col items-center gap-4">
+                        <CardContent className="flex flex-col items-center gap-5 p-5 sm:p-6">
                             <div className="relative flex h-36 w-36 items-center justify-center">
                                 <svg viewBox="0 0 120 120" className="h-36 w-36 -rotate-90">
-                                    <circle cx="60" cy="60" r="46" fill="none" stroke="#f5f2ec" strokeWidth="14" />
+                                    <circle
+                                        cx="60"
+                                        cy="60"
+                                        r="46"
+                                        fill="none"
+                                        stroke="#F3EFE8"
+                                        strokeWidth="14"
+                                    />
                                     {salesByCategory.map((cat, idx) => {
                                         const dash = (cat.shareBps / 10000) * donutCircumference;
                                         const offset = -catOffset;
                                         catOffset += dash;
                                         return (
-                                            <circle
+                                            <motion.circle
                                                 key={cat.categoryId}
+                                                initial={{ strokeDashoffset: donutCircumference }}
+                                                animate={{ strokeDashoffset: offset }}
+                                                transition={{ duration: 0.6, delay: idx * 0.06 }}
                                                 cx="60"
                                                 cy="60"
                                                 r="46"
@@ -266,33 +387,42 @@ export default function DashboardPage({ overview }: DashboardPageProps) {
                                                 stroke={CATEGORY_COLORS[idx % CATEGORY_COLORS.length]}
                                                 strokeWidth="14"
                                                 strokeDasharray={`${dash} ${donutCircumference}`}
-                                                strokeDashoffset={offset}
                                             />
                                         );
                                     })}
                                 </svg>
                                 <div className="absolute text-center">
-                                    <div className="font-mono text-sm font-bold">
+                                    <div className="ds-num-sm font-bold text-foreground">
                                         {formatCents(metrics.totalRevenueCents)}
                                     </div>
-                                    <div className="text-[10px] text-muted-foreground uppercase">Revenue</div>
+                                    <div className="ds-overline mt-0.5">Revenue</div>
                                 </div>
                             </div>
 
-                            <div className="w-full space-y-2 text-xs">
+                            <div className="w-full space-y-2.5 text-xs">
                                 {salesByCategory.length === 0 ? (
-                                    <p className="text-center text-muted-foreground">No paid category sales yet.</p>
+                                    <p className="py-3 text-center text-muted-foreground">
+                                        No paid category sales recorded yet.
+                                    </p>
                                 ) : (
                                     salesByCategory.map((cat, idx) => (
-                                        <div key={cat.categoryId} className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
+                                        <div
+                                            key={cat.categoryId}
+                                            className="flex items-center justify-between gap-2 rounded-xl bg-[var(--surface-inset)] px-3 py-2"
+                                        >
+                                            <div className="flex min-w-0 items-center gap-2">
                                                 <span
-                                                    className="h-2.5 w-2.5 rounded-full"
-                                                    style={{ backgroundColor: CATEGORY_COLORS[idx % CATEGORY_COLORS.length] }}
+                                                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                                    style={{
+                                                        backgroundColor:
+                                                            CATEGORY_COLORS[idx % CATEGORY_COLORS.length],
+                                                    }}
                                                 />
-                                                <span className="font-medium">{cat.categoryName}</span>
+                                                <span className="truncate font-medium text-foreground">
+                                                    {cat.categoryName}
+                                                </span>
                                             </div>
-                                            <span className="font-mono text-muted-foreground">
+                                            <span className="shrink-0 font-mono font-semibold text-muted-foreground tabular-nums">
                                                 {formatCents(cat.revenueCents)} · {formatBps(cat.shareBps)}
                                             </span>
                                         </div>
@@ -303,27 +433,29 @@ export default function DashboardPage({ overview }: DashboardPageProps) {
                     </Card>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-3">
-                    <Card className="rounded-2xl lg:col-span-2">
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <div>
-                                <CardTitle className="text-base">Live Orders</CardTitle>
+                {/* Live Floor Operations & Table Mix */}
+                <div className="grid gap-5 lg:grid-cols-3">
+                    <Card className="lg:col-span-2">
+                        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/60 bg-[var(--surface-inset)]/60">
+                            <div className="min-w-0">
+                                <CardTitle>Live Orders</CardTitle>
                                 <CardDescription>Active dining room tabs &amp; takeaway queues</CardDescription>
                             </div>
                             <Link
                                 href="/orders"
-                                className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                                className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline"
                             >
-                                View all orders <ArrowRight className="h-3.5 w-3.5" />
+                                <span>View all</span>
+                                <ArrowRight className="h-3.5 w-3.5" />
                             </Link>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="p-4 sm:p-5">
                             {liveOrders.length === 0 ? (
-                                <p className="py-6 text-center text-sm text-muted-foreground">
-                                    No open orders at the moment.
+                                <p className="py-8 text-center text-sm text-muted-foreground">
+                                    No open orders at the moment. Open a tab from POS Register or Floor Plan.
                                 </p>
                             ) : (
-                                <div className="divide-y divide-border">
+                                <div className="space-y-2">
                                     {liveOrders.map((order) => {
                                         const itemCount = order.items
                                             .filter((i) => i.prep_state !== 'voided')
@@ -333,22 +465,30 @@ export default function DashboardPage({ overview }: DashboardPageProps) {
                                             <Link
                                                 key={order.id}
                                                 href={`/pos?order_id=${order.id}`}
-                                                className="flex items-center justify-between gap-3 py-3 transition hover:bg-muted/40 rounded-lg px-2"
+                                                className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-[var(--surface-inset)]/60 px-3.5 py-3 transition hover:border-primary/30 hover:bg-card"
                                             >
-                                                <div className="min-w-0">
-                                                    <div className="font-semibold text-sm">
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="truncate text-sm font-semibold text-foreground">
                                                         {order.order_number} ·{' '}
-                                                        {order.table_code ? `Table ${order.table_code}` : order.customer_name || 'Takeaway'}
+                                                        {order.table_code
+                                                            ? `Table ${order.table_code}`
+                                                            : order.customer_name || 'Takeaway'}
                                                     </div>
-                                                    <div className="text-xs text-muted-foreground">
+                                                    <div className="ds-caption truncate">
                                                         {itemCount} items · {order.server_name ?? 'Staff'}
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-3">
-                                                    <Badge variant={order.state === 'partially_paid' ? 'warning' : 'outline'}>
-                                                        {order.state}
-                                                    </Badge>
-                                                    <span className="font-mono text-sm font-bold">
+                                                <div className="flex shrink-0 items-center gap-2.5">
+                                                    <StatusPill
+                                                        tone={
+                                                            order.state === 'partially_paid'
+                                                                ? 'warning'
+                                                                : 'brand'
+                                                        }
+                                                        pulse={order.state === 'open'}
+                                                        label={order.state.replace('_', ' ')}
+                                                    />
+                                                    <span className="ds-num-sm text-foreground">
                                                         {formatCents(order.total_cents)}
                                                     </span>
                                                 </div>
@@ -360,23 +500,31 @@ export default function DashboardPage({ overview }: DashboardPageProps) {
                         </CardContent>
                     </Card>
 
-                    <Card className="rounded-2xl">
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <div>
-                                <CardTitle className="text-base">Table Status</CardTitle>
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/60 bg-[var(--surface-inset)]/60">
+                            <div className="min-w-0">
+                                <CardTitle>Table Status</CardTitle>
                                 <CardDescription>Live dining room mix</CardDescription>
                             </div>
                             <Link
                                 href="/tables"
-                                className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                                className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline"
                             >
-                                Floor plan <ArrowRight className="h-3.5 w-3.5" />
+                                <span>Floor plan</span>
+                                <ArrowRight className="h-3.5 w-3.5" />
                             </Link>
                         </CardHeader>
-                        <CardContent className="flex flex-col items-center gap-4">
+                        <CardContent className="flex flex-col items-center gap-5 p-5 sm:p-6">
                             <div className="relative flex h-32 w-32 items-center justify-center">
                                 <svg viewBox="0 0 120 120" className="h-32 w-32 -rotate-90">
-                                    <circle cx="60" cy="60" r="46" fill="none" stroke="#f5f2ec" strokeWidth="14" />
+                                    <circle
+                                        cx="60"
+                                        cy="60"
+                                        r="46"
+                                        fill="none"
+                                        stroke="#F3EFE8"
+                                        strokeWidth="14"
+                                    />
                                     {tableSegments.map((seg) => {
                                         const dash = (seg.count / totalTables) * donutCircumference;
                                         const offset = -tableOffset;
@@ -396,20 +544,26 @@ export default function DashboardPage({ overview }: DashboardPageProps) {
                                         );
                                     })}
                                 </svg>
-                                <div className="text-center absolute">
-                                    <div className="font-mono text-lg font-bold">{tableStatusCounts.total}</div>
-                                    <div className="text-[10px] text-muted-foreground">Tables</div>
+                                <div className="absolute text-center">
+                                    <div className="ds-num-md">{tableStatusCounts.total}</div>
+                                    <div className="ds-overline mt-0.5">Tables</div>
                                 </div>
                             </div>
 
-                            <div className="grid w-full grid-cols-2 gap-2 text-xs">
+                            <div className="grid w-full grid-cols-2 gap-2.5 text-xs">
                                 {tableSegments.map((seg) => (
-                                    <div key={seg.label} className="flex items-center justify-between rounded-lg bg-muted/50 px-2.5 py-1.5">
-                                        <span className="flex items-center gap-1.5">
-                                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: seg.color }} />
-                                            {seg.label}
+                                    <div
+                                        key={seg.label}
+                                        className="flex items-center justify-between rounded-xl border border-border/70 bg-[var(--surface-inset)] px-3 py-2"
+                                    >
+                                        <span className="flex min-w-0 items-center gap-1.5 truncate">
+                                            <span
+                                                className="h-2 w-2 shrink-0 rounded-full"
+                                                style={{ backgroundColor: seg.color }}
+                                            />
+                                            <span className="truncate">{seg.label}</span>
                                         </span>
-                                        <span className="font-mono font-semibold">{seg.count}</span>
+                                        <span className="font-mono font-bold tabular-nums">{seg.count}</span>
                                     </div>
                                 ))}
                             </div>
@@ -417,70 +571,103 @@ export default function DashboardPage({ overview }: DashboardPageProps) {
                     </Card>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-2">
-                    <Card className="rounded-2xl">
-                        <CardHeader className="flex flex-row items-center justify-between">
+                {/* Trending & Out of Stock */}
+                <div className="grid gap-5 lg:grid-cols-2">
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/60 bg-[var(--surface-inset)]/60">
                             <div>
-                                <CardTitle className="text-base">Trending Dishes</CardTitle>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Flame className="h-4 w-4 text-primary" />
+                                    <span>Trending Dishes</span>
+                                </CardTitle>
                                 <CardDescription>Top revenue items today</CardDescription>
                             </div>
-                            <Link href="/reports" className="text-xs font-semibold text-primary hover:underline">
+                            <Link
+                                href="/reports"
+                                className="shrink-0 text-xs font-semibold text-primary hover:underline"
+                            >
                                 Full report →
                             </Link>
                         </CardHeader>
-                        <CardContent className="space-y-2.5">
+                        <CardContent className="space-y-2.5 p-4 sm:p-5">
                             {metrics.topProducts.length === 0 ? (
-                                <p className="py-4 text-center text-sm text-muted-foreground">No dish sales recorded yet.</p>
+                                <p className="py-6 text-center text-sm text-muted-foreground">
+                                    No dish sales recorded yet today.
+                                </p>
                             ) : (
-                                metrics.topProducts.slice(0, 4).map((product) => (
+                                metrics.topProducts.slice(0, 4).map((product, index) => (
                                     <div
                                         key={product.menuItemVariantId}
-                                        className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/30 px-3.5 py-2.5 text-sm"
+                                        className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-[var(--surface-inset)]/70 px-3.5 py-3 text-sm"
                                     >
-                                        <div>
-                                            <div className="font-semibold">{product.itemName}</div>
-                                            <div className="text-xs text-muted-foreground">
-                                                {product.variantName} · {product.quantitySold} sold
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent font-mono text-xs font-bold text-primary">
+                                                #{index + 1}
+                                            </span>
+                                            <div className="min-w-0">
+                                                <div className="truncate font-semibold text-foreground">
+                                                    {product.itemName}
+                                                </div>
+                                                <div className="ds-caption truncate">
+                                                    {product.variantName} · {product.quantitySold} sold
+                                                </div>
                                             </div>
                                         </div>
-                                        <span className="font-mono font-bold">{formatCents(product.revenueCents)}</span>
+                                        <span className="ds-num-sm shrink-0 text-foreground">
+                                            {formatCents(product.revenueCents)}
+                                        </span>
                                     </div>
                                 ))
                             )}
                         </CardContent>
                     </Card>
 
-                    <Card className="rounded-2xl">
-                        <CardHeader className="flex flex-row items-center justify-between">
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/60 bg-[var(--surface-inset)]/60">
                             <div>
-                                <CardTitle className="text-base">Out of Stock (86’d)</CardTitle>
-                                <CardDescription>Items unavailable at this branch</CardDescription>
+                                <CardTitle>Out of Stock (86’d)</CardTitle>
+                                <CardDescription>Items temporarily held at this branch</CardDescription>
                             </div>
-                            <Link href="/menu" className="text-xs font-semibold text-primary hover:underline">
+                            <Link
+                                href="/menu"
+                                className="shrink-0 text-xs font-semibold text-primary hover:underline"
+                            >
                                 Manage menu →
                             </Link>
                         </CardHeader>
-                        <CardContent className="space-y-2.5">
+                        <CardContent className="space-y-2.5 p-4 sm:p-5">
                             {outOfStockItems.length === 0 ? (
-                                <p className="py-4 text-center text-sm text-muted-foreground">
+                                <p className="py-6 text-center text-sm text-muted-foreground">
                                     All menu items are currently available.
                                 </p>
                             ) : (
                                 outOfStockItems.map((item) => (
                                     <div
                                         key={item.variant_id}
-                                        className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50/70 px-3.5 py-2.5 text-sm"
+                                        className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/20 bg-rose-500/8 px-3.5 py-3 text-sm"
                                     >
-                                        <div className="flex items-center gap-2.5 min-w-0">
-                                            <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            {item.image_path ? (
+                                                <img
+                                                    src={item.image_path}
+                                                    alt={item.item_name}
+                                                    className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-rose-500/20"
+                                                />
+                                            ) : (
+                                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-500/15 text-rose-600">
+                                                    <AlertCircle className="h-4.5 w-4.5" />
+                                                </span>
+                                            )}
                                             <div className="min-w-0">
-                                                <div className="truncate font-semibold text-rose-900">
+                                                <div className="truncate font-semibold text-rose-950">
                                                     {item.item_name} ({item.variant_name})
                                                 </div>
-                                                <div className="truncate text-xs text-rose-700">{item.reason}</div>
+                                                <div className="truncate text-xs text-rose-700">
+                                                    {item.reason}
+                                                </div>
                                             </div>
                                         </div>
-                                        <Badge variant="destructive" className="shrink-0">86’d</Badge>
+                                        <StatusPill tone="danger" dot={false} label="86’d" className="shrink-0" />
                                     </div>
                                 ))
                             )}
