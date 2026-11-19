@@ -259,8 +259,8 @@ export default function PosPage({
                     </Button>
                 </div>
 
-                <div className="grid gap-5 lg:grid-cols-12">
-                    <div className="space-y-4 lg:col-span-8">
+                <div className="grid gap-5 md:grid-cols-12">
+                    <div className="space-y-4 md:col-span-7 xl:col-span-8">
                         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3.5">
                             <div className="flex flex-wrap gap-1.5">
                                 <button
@@ -370,7 +370,7 @@ export default function PosPage({
                         </div>
                     </div>
 
-                    <div className="lg:col-span-4">
+                    <div className="md:col-span-5 xl:col-span-4">
                         <div className="sticky top-20 flex flex-col justify-between rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4">
                             {!activeOrder ? (
                                 <div className="space-y-3 py-16 text-center">
@@ -567,6 +567,24 @@ export default function PosPage({
                                     </div>
 
                                     <div className="space-y-2 pt-1">
+                                        {activeOrder.state === 'billing' && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-full rounded-xl"
+                                                onClick={() =>
+                                                    router.post(
+                                                        `/billing/orders/${activeOrder.id}/reopen`,
+                                                        {},
+                                                        { preserveScroll: true },
+                                                    )
+                                                }
+                                            >
+                                                Reopen Order to Add Items
+                                            </Button>
+                                        )}
+
                                         {draftItems.length > 0 && canModifyItems && (
                                             <Button
                                                 type="button"

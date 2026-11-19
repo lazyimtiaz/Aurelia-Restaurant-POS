@@ -76,7 +76,7 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
 
     return (
         <div className="flex min-h-screen bg-background text-foreground">
-            <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col justify-between border-r border-border bg-card px-3 py-5 lg:flex">
+            <aside className="sticky top-0 hidden h-screen w-52 xl:w-60 shrink-0 flex-col justify-between border-r border-border bg-card px-3 py-5 md:flex">
                 <div className="space-y-6">
                     <div className="flex items-center gap-3 px-2.5">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
@@ -209,7 +209,7 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
                             <button
                                 type="button"
                                 onClick={handleLock}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-2.5 py-1.5 text-xs font-semibold text-stone-700 lg:hidden cursor-pointer"
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-2.5 py-1.5 text-xs font-semibold text-stone-700 md:hidden cursor-pointer"
                             >
                                 <Lock className="h-3.5 w-3.5" />
                                 Lock
@@ -217,7 +217,7 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
                         </div>
                     </div>
 
-                    <div className="mt-2.5 flex gap-1.5 overflow-x-auto pb-0.5 lg:hidden">
+                    <div className="mt-2.5 flex gap-1.5 overflow-x-auto pb-0.5 md:hidden">
                         {visibleNav.map((item) => {
                             const isActive =
                                 currentPath === item.href || currentPath.startsWith(`${item.href}/`);

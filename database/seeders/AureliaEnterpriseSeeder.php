@@ -13,7 +13,9 @@ use App\Modules\Floor\Enums\TableState;
 use App\Modules\Floor\Models\DiningTable;
 use App\Modules\Floor\Models\FloorZone;
 use App\Modules\Identity\Enums\StaffRole;
+use App\Modules\Inventory\Actions\DeductRecipeIngredientsAction;
 use App\Modules\Inventory\Enums\MeasurementUnit;
+use App\Modules\Inventory\Enums\StockMovementType;
 use App\Modules\Inventory\Models\BranchIngredientStock;
 use App\Modules\Inventory\Models\Ingredient;
 use App\Modules\Inventory\Models\RecipeItem;
@@ -571,6 +573,19 @@ class AureliaEnterpriseSeeder extends Seeder
             $bump->execute($it->id, ItemPrepState::Ready, $chef->id);
         }
         app(ServeKitchenTicketExpoAction::class)->execute($ticket->id, $expo->id);
+
+        app(DeductRecipeIngredientsAction::class)->execute(
+            branchId: $branch->id,
+            referenceType: 'kitchen_ticket',
+            referenceId: $ticket->id,
+            variantQuantities: [
+                $variants['SAL-BUR-REG']->id => 1,
+                $variants['GRL-RIB-300']->id => 1,
+                $variants['PAS-TOR-IND']->id => 1,
+            ],
+            movementType: StockMovementType::OrderSale,
+            actorUserId: $expo->id,
+        );
 
         $billing = app(RequestOrderBillAction::class)->execute($sample->id);
         $split = $billing->billSplits->firstOrFail();
