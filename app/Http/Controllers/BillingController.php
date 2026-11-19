@@ -42,7 +42,8 @@ final class BillingController extends Controller
             throw ValidationException::withMessages(['billing' => $e->getMessage()]);
         }
 
-        return back()->with('activeOrderId', $orderId);
+        return back()
+            ->with('activeOrderId', $orderId);
     }
 
     public function reopenOrder(
@@ -55,7 +56,9 @@ final class BillingController extends Controller
             throw ValidationException::withMessages(['billing' => $e->getMessage()]);
         }
 
-        return back()->with('activeOrderId', $orderId);
+        return back()
+            ->with('activeOrderId', $orderId)
+            ->with('success', 'Order reopened for editing.');
     }
 
     public function splitOrder(
@@ -96,7 +99,9 @@ final class BillingController extends Controller
             throw ValidationException::withMessages(['split' => $e->getMessage()]);
         }
 
-        return back()->with('activeOrderId', $orderId);
+        return back()
+            ->with('activeOrderId', $orderId)
+            ->with('success', 'Bill split updated.');
     }
 
     public function paySplit(

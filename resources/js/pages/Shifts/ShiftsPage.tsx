@@ -16,6 +16,7 @@ interface ShiftsPageProps {
 export default function ShiftsPage({ shifts }: ShiftsPageProps) {
     const { auth } = usePage<PosSharedProps>().props;
     const activeShift = auth?.activeShift;
+    const canViewExpectedCash = auth?.staff?.can_authorize_pin ?? false;
 
     const [openingDollars, setOpeningDollars] = useState('250.00');
     const [countedDollars, setCountedDollars] = useState('');
@@ -106,11 +107,19 @@ export default function ShiftsPage({ shifts }: ShiftsPageProps) {
                             subtitle={activeShift.opened_at ?? 'Current shift'}
                         />
                         <StatCard
-                            label="Expected Drawer Cash"
-                            value={formatCents(activeShift.expected_cash_cents)}
+                            label={canViewExpectedCash ? 'Expected Drawer Cash' : 'Blind Count Mode'}
+                            value={
+                                canViewExpectedCash
+                                    ? formatCents(activeShift.expected_cash_cents)
+                                    : 'Blind Close'
+                            }
                             icon={<Wallet className="h-4.5 w-4.5" />}
                             tone="emerald"
-                            subtitle="Float + captured cash sales"
+                            subtitle={
+                                canViewExpectedCash
+                                    ? 'Float + captured cash sales'
+                                    : 'Expected figure hidden until drawer closes'
+                            }
                         />
                         <StatCard
                             label="Variance Flags"
@@ -132,7 +141,9 @@ export default function ShiftsPage({ shifts }: ShiftsPageProps) {
                         </CardTitle>
                         <CardDescription>
                             {activeShift
-                                ? `Opened at ${activeShift.opened_at ?? 'shift start'} · Expected cash ${formatCents(activeShift.expected_cash_cents)}`
+                                ? canViewExpectedCash
+                                    ? `Opened at ${activeShift.opened_at ?? 'shift start'} · Expected cash ${formatCents(activeShift.expected_cash_cents)}`
+                                    : `Opened at ${activeShift.opened_at ?? 'shift start'} · Count physical drawer bills cleanly before closing.`
                                 : 'No open register shift at this branch. Enter opening float to start taking orders.'}
                         </CardDescription>
                     </CardHeader>
@@ -162,8 +173,9 @@ export default function ShiftsPage({ shifts }: ShiftsPageProps) {
                             >
                                 <label className="space-y-1.5 text-xs">
                                     <span className="ds-label block">
-                                        Blind Counted Cash ($) — Expected{' '}
-                                        {formatCents(activeShift.expected_cash_cents)}
+                                        {canViewExpectedCash
+                                            ? `Counted Cash ($) — Expected ${formatCents(activeShift.expected_cash_cents)}`
+                                            : 'Blind Counted Cash ($)'}
                                     </span>
                                     <input
                                         type="number"

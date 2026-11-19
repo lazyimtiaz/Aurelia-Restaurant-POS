@@ -10,7 +10,7 @@ import {
     Sparkles,
     Users,
 } from 'lucide-react';
-import { AnimatedTabs, MotionModal, StatusPill, type StatusPillTone } from '@/design-system';
+import { AnimatedTabs, MotionModal, StatusPill, dispatchToast, type StatusPillTone } from '@/design-system';
 import { Button } from '@/components/ui/button';
 import { useBranchEcho } from '@/hooks/useBranchEcho';
 import { formatCents } from '@/lib/money';
@@ -150,19 +150,33 @@ export default function TablesPage({ zones, activeOrders }: TablesPageProps) {
                 onSuccess: () => {
                     router.visit('/pos');
                 },
+                onError: (errors) =>
+                    dispatchToast('error', Object.values(errors)[0] || 'Could not open order on table.'),
             },
         );
     };
 
     const handleUpdateState = (tableId: number, state: TableStateValue) => {
-        router.post(`/tables/${tableId}/state`, { state }, { preserveScroll: true });
+        router.post(
+            `/tables/${tableId}/state`,
+            { state },
+            {
+                preserveScroll: true,
+                onError: (errors) =>
+                    dispatchToast('error', Object.values(errors)[0] || 'Could not update table state.'),
+            },
+        );
     };
 
     const handleServiceAlert = (tableId: number) => {
         router.post(
             `/tables/${tableId}/service-request`,
             { request_type: 'Server Check-In' },
-            { preserveScroll: true },
+            {
+                preserveScroll: true,
+                onError: (errors) =>
+                    dispatchToast('error', Object.values(errors)[0] || 'Could not send service alert.'),
+            },
         );
     };
 

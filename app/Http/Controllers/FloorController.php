@@ -56,7 +56,7 @@ final class FloorController extends Controller
             throw ValidationException::withMessages(['table' => $e->getMessage()]);
         }
 
-        return back();
+        return back()->with('success', 'Table state updated.');
     }
 
     public function requestService(

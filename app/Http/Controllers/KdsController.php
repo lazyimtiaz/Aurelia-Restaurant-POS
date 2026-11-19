@@ -30,11 +30,9 @@ final class KdsController extends Controller
         $branch = $staffContext->requireActiveBranch($request);
 
         $stationParam = $request->query('station');
-        $station = is_string($stationParam) ? PrepStation::tryFrom($stationParam) : null;
-
-        if ($station === null && $staff->assigned_station !== null) {
-            $station = PrepStation::tryFrom($staff->assigned_station);
-        }
+        $queryStation = is_string($stationParam) ? PrepStation::tryFrom($stationParam) : null;
+        $initialStation = $queryStation
+            ?? ($staff->assigned_station !== null ? PrepStation::tryFrom($staff->assigned_station) : null);
 
         $stations = array_map(
             static fn (PrepStation $s): array => [
@@ -45,9 +43,9 @@ final class KdsController extends Controller
         );
 
         return Inertia::render('Kitchen/KitchenPage', [
-            'tickets' => $getActiveTickets->execute($branch->id, $station)->values()->all(),
+            'tickets' => $getActiveTickets->execute($branch->id, $queryStation)->values()->all(),
             'stations' => $stations,
-            'activeStation' => $station?->value,
+            'activeStation' => $initialStation?->value,
         ]);
     }
 
@@ -86,6 +84,6 @@ final class KdsController extends Controller
             throw ValidationException::withMessages(['ticket' => $e->getMessage()]);
         }
 
-        return back();
+        return back()->with('success', 'Ticket bumped & served from Expo.');
     }
 }

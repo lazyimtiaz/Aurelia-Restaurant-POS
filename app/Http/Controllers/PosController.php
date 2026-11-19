@@ -12,9 +12,11 @@ use App\Modules\Kitchen\Enums\VoidReason;
 use App\Modules\Menu\Queries\GetBranchCatalogQuery;
 use App\Modules\Orders\Actions\AddDraftOrderItemAction;
 use App\Modules\Orders\Actions\ApplyOrderDiscountAction;
+use App\Modules\Orders\Actions\CancelDraftOrderAction;
 use App\Modules\Orders\Actions\FireOrderRoundAction;
 use App\Modules\Orders\Actions\OpenOrderTabAction;
 use App\Modules\Orders\Actions\RemoveDraftOrderItemAction;
+use App\Modules\Orders\Actions\UpdateDraftOrderItemQuantityAction;
 use App\Modules\Orders\Actions\VoidOrderItemAction;
 use App\Modules\Orders\DTOs\OrderItemInputData;
 use App\Modules\Orders\Enums\ServiceType;
@@ -28,6 +30,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
 
 final class PosController extends Controller
 {
@@ -79,7 +82,26 @@ final class PosController extends Controller
             throw ValidationException::withMessages(['order' => $e->getMessage()]);
         }
 
-        return back()->with('activeOrderId', $order->id);
+        return back()
+            ->with('activeOrderId', $order->id)
+            ->with('success', "Order {$order->order_number} opened.");
+    }
+
+    public function cancelOrder(
+        Request $request,
+        int $orderId,
+        CurrentStaffContext $staffContext,
+        CancelDraftOrderAction $cancelOrder,
+    ): RedirectResponse {
+        $staff = $staffContext->requireStaff($request);
+
+        try {
+            $cancelled = $cancelOrder->execute($orderId, $staff->id);
+        } catch (DomainException $e) {
+            throw ValidationException::withMessages(['order' => $e->getMessage()]);
+        }
+
+        return back()->with('success', "Draft tab {$cancelled->order_number} cancelled.");
     }
 
     public function addItem(
@@ -111,6 +133,24 @@ final class PosController extends Controller
         return back()->with('activeOrderId', $orderId);
     }
 
+    public function updateItemQuantity(
+        Request $request,
+        int $itemId,
+        UpdateDraftOrderItemQuantityAction $updateQuantity,
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'quantity' => ['required', 'integer', 'min:0', 'max:50'],
+        ]);
+
+        try {
+            $order = $updateQuantity->execute($itemId, (int) $validated['quantity']);
+        } catch (DomainException|InvalidArgumentException $e) {
+            throw ValidationException::withMessages(['item' => $e->getMessage()]);
+        }
+
+        return back()->with('activeOrderId', $order->id);
+    }
+
     public function removeItem(
         int $itemId,
         RemoveDraftOrderItemAction $removeDraftItem,
@@ -138,7 +178,9 @@ final class PosController extends Controller
             throw ValidationException::withMessages(['fire' => $e->getMessage()]);
         }
 
-        return back()->with('activeOrderId', $orderId);
+        return back()
+            ->with('activeOrderId', $orderId)
+            ->with('success', 'Order round fired to kitchen stations.');
     }
 
     public function applyDiscount(
@@ -165,7 +207,9 @@ final class PosController extends Controller
             throw ValidationException::withMessages(['manager_pin' => $e->getMessage()]);
         }
 
-        return back()->with('activeOrderId', $orderId);
+        return back()
+            ->with('activeOrderId', $orderId)
+            ->with('success', 'Discount updated on order.');
     }
 
     public function voidItem(
@@ -194,6 +238,8 @@ final class PosController extends Controller
             throw ValidationException::withMessages(['item' => $e->getMessage()]);
         }
 
-        return back()->with('activeOrderId', $voided->order_id);
+        return back()
+            ->with('activeOrderId', $voided->order_id)
+            ->with('success', 'Item voided and audited.');
     }
 }

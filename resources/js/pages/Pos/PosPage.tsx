@@ -6,6 +6,7 @@ import {
     Ban,
     CheckCircle2,
     Flame,
+    Minus,
     Percent,
     Plus,
     Receipt,
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { AnimatedTabs, MotionDrawer, StatusPill } from '@/design-system';
+import { AnimatedTabs, MotionDrawer, StatusPill, dispatchToast } from '@/design-system';
 import { useBranchEcho } from '@/hooks/useBranchEcho';
 import { PosAppLayout } from '@/layouts/PosAppLayout';
 import { formatCents } from '@/lib/money';
@@ -162,7 +163,11 @@ export default function PosPage({
                 seat_number: 1,
                 special_instructions: '',
             },
-            { preserveScroll: true },
+            {
+                preserveScroll: true,
+                onError: (errors) =>
+                    dispatchToast('error', Object.values(errors)[0] || 'Could not add item to order.'),
+            },
         );
     };
 
@@ -177,6 +182,8 @@ export default function PosPage({
         router.post(`/pos/orders/${activeOrder.id}/items`, payload, {
             preserveScroll: true,
             onSuccess: () => setModifierItem(null),
+            onError: (errors) =>
+                dispatchToast('error', Object.values(errors)[0] || 'Could not add configured item.'),
         });
     };
 
@@ -187,7 +194,15 @@ export default function PosPage({
             setPinModalState({ type: 'discount', discountBps: bps });
             return;
         }
-        router.post(`/pos/orders/${activeOrder.id}/discount`, { discount_bps: bps }, { preserveScroll: true });
+        router.post(
+            `/pos/orders/${activeOrder.id}/discount`,
+            { discount_bps: bps },
+            {
+                preserveScroll: true,
+                onError: (errors) =>
+                    dispatchToast('error', Object.values(errors)[0] || 'Could not apply discount.'),
+            },
+        );
     };
 
     const handlePinConfirm = ({ pin, reason }: { pin: string; reason?: string }) => {
@@ -204,7 +219,10 @@ export default function PosPage({
                 {
                     preserveScroll: true,
                     onSuccess: () => setPinModalState(null),
-                    onError: (errors) => setPinError(errors.manager_pin || errors.item || 'Invalid PIN.'),
+                    onError: (errors) =>
+                        setPinError(
+                            errors.manager_pin || errors.reason || errors.item || 'Authorization failed.',
+                        ),
                 },
             );
             return;
@@ -237,8 +255,20 @@ export default function PosPage({
             {
                 preserveScroll: true,
                 onSuccess: () => setPaymentOpen(true),
+                onError: (errors) =>
+                    dispatchToast('error', Object.values(errors)[0] || 'Could not request bill.'),
             },
         );
+    };
+
+    const handleCancelDraftOrder = () => {
+        if (!activeOrder) return;
+        setMobileCartOpen(false);
+        router.delete(`/pos/orders/${activeOrder.id}`, {
+            preserveScroll: true,
+            onError: (errors) =>
+                dispatchToast('error', Object.values(errors)[0] || 'Could not cancel draft tab.'),
+        });
     };
 
     const draftItems = activeOrder?.items.filter((i) => i.prep_state === 'draft') ?? [];
@@ -292,17 +322,30 @@ export default function PosPage({
                                 : activeOrder.customer_name || 'Takeaway Order'}
                         </p>
                     </div>
-                    {activeOrder.table_id && canModifyItems && (
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setTransferOpen(true)}
-                        >
-                            <ArrowRightLeft className="h-3.5 w-3.5" />
-                            <span>Move</span>
-                        </Button>
-                    )}
+                    <div className="flex shrink-0 items-center gap-1.5">
+                        {activeOrder.table_id && canModifyItems && (
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setTransferOpen(true)}
+                            >
+                                <ArrowRightLeft className="h-3.5 w-3.5" />
+                                <span>Move</span>
+                            </Button>
+                        )}
+                        {activeOrder.state === 'draft' && firedItems.length === 0 && (
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={handleCancelDraftOrder}
+                                className="text-rose-600 hover:bg-rose-500/10 hover:text-rose-700"
+                            >
+                                Cancel Tab
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
@@ -343,23 +386,60 @@ export default function PosPage({
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="flex shrink-0 items-center gap-2">
-                                            <span className="ds-num-sm text-foreground">
-                                                {formatCents(item.line_total_cents)}
-                                            </span>
+                                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="ds-num-sm text-foreground">
+                                                    {formatCents(item.line_total_cents)}
+                                                </span>
+                                                {canModifyItems && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            router.delete(`/pos/order-items/${item.id}`, {
+                                                                preserveScroll: true,
+                                                            })
+                                                        }
+                                                        className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-500/10 cursor-pointer"
+                                                        aria-label="Remove item"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </button>
+                                                )}
+                                            </div>
                                             {canModifyItems && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        router.delete(`/pos/order-items/${item.id}`, {
-                                                            preserveScroll: true,
-                                                        })
-                                                    }
-                                                    className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-500/10 cursor-pointer"
-                                                    aria-label="Remove item"
-                                                >
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </button>
+                                                <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-card p-0.5">
+                                                    <button
+                                                        type="button"
+                                                        aria-label={`Decrease quantity of ${item.item_name}`}
+                                                        onClick={() =>
+                                                            router.patch(
+                                                                `/pos/order-items/${item.id}`,
+                                                                { quantity: item.quantity - 1 },
+                                                                { preserveScroll: true },
+                                                            )
+                                                        }
+                                                        className="flex h-6 w-6 items-center justify-center rounded-md text-foreground hover:bg-secondary cursor-pointer"
+                                                    >
+                                                        <Minus className="h-3 w-3" />
+                                                    </button>
+                                                    <span className="min-w-5 text-center font-mono text-xs font-bold tabular-nums">
+                                                        {item.quantity}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        aria-label={`Increase quantity of ${item.item_name}`}
+                                                        onClick={() =>
+                                                            router.patch(
+                                                                `/pos/order-items/${item.id}`,
+                                                                { quantity: item.quantity + 1 },
+                                                                { preserveScroll: true },
+                                                            )
+                                                        }
+                                                        className="flex h-6 w-6 items-center justify-center rounded-md text-foreground hover:bg-secondary cursor-pointer"
+                                                    >
+                                                        <Plus className="h-3 w-3" />
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     </motion.div>
@@ -510,7 +590,14 @@ export default function PosPage({
                                 router.post(
                                     `/billing/orders/${activeOrder.id}/reopen`,
                                     {},
-                                    { preserveScroll: true },
+                                    {
+                                        preserveScroll: true,
+                                        onError: (errors) =>
+                                            dispatchToast(
+                                                'error',
+                                                Object.values(errors)[0] || 'Could not reopen order.',
+                                            ),
+                                    },
                                 )
                             }
                         >
@@ -528,7 +615,14 @@ export default function PosPage({
                                 router.post(
                                     `/pos/orders/${activeOrder.id}/fire`,
                                     {},
-                                    { preserveScroll: true },
+                                    {
+                                        preserveScroll: true,
+                                        onError: (errors) =>
+                                            dispatchToast(
+                                                'error',
+                                                Object.values(errors)[0] || 'Could not fire round to kitchen.',
+                                            ),
+                                    },
                                 )
                             }
                         >

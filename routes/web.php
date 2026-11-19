@@ -55,7 +55,9 @@ Route::middleware(['terminal', 'staff'])->group(function (): void {
 
         Route::middleware(RequireOpenShiftMiddleware::class)->group(function (): void {
             Route::post('/orders', [PosController::class, 'storeOrder'])->name('orders.store');
+            Route::delete('/orders/{orderId}', [PosController::class, 'cancelOrder'])->name('orders.cancel');
             Route::post('/orders/{orderId}/items', [PosController::class, 'addItem'])->name('orders.items.add');
+            Route::patch('/order-items/{itemId}', [PosController::class, 'updateItemQuantity'])->name('orders.items.update');
             Route::delete('/order-items/{itemId}', [PosController::class, 'removeItem'])->name('orders.items.remove');
             Route::post('/orders/{orderId}/fire', [PosController::class, 'fireRound'])->name('orders.fire');
             Route::post('/orders/{orderId}/discount', [PosController::class, 'applyDiscount'])->name('orders.discount');
@@ -87,6 +89,7 @@ Route::middleware(['terminal', 'staff'])->group(function (): void {
 
     Route::prefix('menu')->name('menu.')->middleware('role:menu')->group(function (): void {
         Route::get('/', [MenuManagementController::class, 'index'])->name('index');
+        Route::post('/items', [MenuManagementController::class, 'storeItem'])->name('items.store');
         Route::post('/{variantId}/availability', [MenuManagementController::class, 'toggleAvailability'])->name('availability');
         Route::post('/{variantId}/price-override', [MenuManagementController::class, 'setPriceOverride'])->name('price-override');
     });
