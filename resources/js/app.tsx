@@ -1,6 +1,7 @@
 import '../css/app.css';
 
 import { createInertiaApp } from '@inertiajs/react';
+import { MotionConfig } from 'motion/react';
 import { createRoot } from 'react-dom/client';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Aurelia Dining Group POS';
@@ -19,9 +20,13 @@ createInertiaApp({
         return page;
     },
     setup({ el, App, props }) {
-        createRoot(el).render(<App {...props} />);
+        createRoot(el).render(
+            <MotionConfig reducedMotion="user">
+                <App {...props} />
+            </MotionConfig>,
+        );
     },
     progress: {
-        color: '#d97706',
+        color: '#EA580C',
     },
 });

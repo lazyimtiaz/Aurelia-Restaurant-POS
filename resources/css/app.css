@@ -6,7 +6,9 @@
 @source '../**/*.ts';
 
 @theme {
-    --font-sans: 'Inter', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-sans: 'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
     --color-background: var(--background);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
@@ -27,41 +29,206 @@
 }
 
 :root {
-    --background: #faf8f5;
-    --foreground: #1c1917;
+    --background: #f7f4ef;
+    --foreground: #181512;
     --card: #ffffff;
-    --card-foreground: #1c1917;
+    --card-foreground: #181512;
+
+    --surface-canvas: #f7f4ef;
+    --surface-card: #ffffff;
+    --surface-inset: #fbf9f6;
+    --surface-overlay: rgba(24, 21, 18, 0.48);
+
     --primary: #ea580c;
+    --primary-hover: #c2410c;
     --primary-foreground: #ffffff;
-    --secondary: #f5f2ec;
+    --secondary: #f3efe8;
     --secondary-foreground: #292524;
-    --muted: #f5f2ec;
+    --muted: #f3efe8;
     --muted-foreground: #78716c;
     --accent: #fff7ed;
     --accent-foreground: #c2410c;
     --destructive: #e11d48;
     --destructive-foreground: #ffffff;
-    --border: #eae5dd;
-    --input: #e5dfd5;
+    --success: #16a34a;
+    --warning: #d97706;
+
+    --border: #eae4db;
+    --border-strong: #dcd4c7;
+    --input: #e2dacf;
     --ring: #ea580c;
+
+    --shadow-card: 0 1px 2px rgba(24, 21, 18, 0.04), 0 8px 24px -12px rgba(24, 21, 18, 0.08);
+    --shadow-elevated: 0 4px 12px rgba(24, 21, 18, 0.06), 0 24px 48px -16px rgba(24, 21, 18, 0.14);
+    --shadow-floating: 0 12px 32px -8px rgba(24, 21, 18, 0.18), 0 2px 6px rgba(24, 21, 18, 0.06);
 }
 
 .dark {
-    --background: #0f1115;
+    --background: #0d0f14;
     --foreground: #f8fafc;
-    --card: #181b21;
+    --card: #161922;
     --card-foreground: #f8fafc;
+
+    --surface-canvas: #0d0f14;
+    --surface-card: #161922;
+    --surface-inset: #1d212b;
+    --surface-overlay: rgba(5, 7, 11, 0.72);
+
     --primary: #fb923c;
+    --primary-hover: #f97316;
     --primary-foreground: #18181b;
-    --secondary: #22262e;
+    --secondary: #1d212b;
     --secondary-foreground: #f1f5f9;
-    --muted: #22262e;
+    --muted: #1d212b;
     --muted-foreground: #94a3b8;
     --accent: #2d2016;
     --accent-foreground: #fdba74;
     --destructive: #f43f5e;
     --destructive-foreground: #ffffff;
-    --border: #2b303a;
+    --success: #22c55e;
+    --warning: #f59e0b;
+
+    --border: #282e3a;
+    --border-strong: #374051;
     --input: #2b303a;
     --ring: #fb923c;
+
+    --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.35);
+    --shadow-elevated: 0 12px 32px rgba(0, 0, 0, 0.5);
+    --shadow-floating: 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+
+@layer base {
+    html,
+    body {
+        font-family: var(--font-sans);
+        background-color: var(--background);
+        color: var(--foreground);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    * {
+        border-color: var(--border);
+    }
+}
+
+/* Bistro Craft Typography Scale */
+.ds-page-title {
+    font-size: clamp(1.375rem, 1.15rem + 0.75vw, 1.625rem);
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: var(--foreground);
+}
+
+.ds-section-title {
+    font-size: 1.0625rem;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    color: var(--foreground);
+}
+
+.ds-card-title {
+    font-size: 0.9375rem;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--foreground);
+}
+
+.ds-body {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    font-weight: 400;
+    color: var(--foreground);
+}
+
+.ds-label {
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    font-weight: 500;
+    color: var(--foreground);
+}
+
+.ds-caption {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    font-weight: 400;
+    color: var(--muted-foreground);
+}
+
+.ds-overline {
+    font-size: 0.6875rem;
+    line-height: 1.2;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted-foreground);
+}
+
+.ds-num-lg {
+    font-family: var(--font-mono);
+    font-size: clamp(1.45rem, 1.25rem + 0.6vw, 1.75rem);
+    line-height: 1.1;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+}
+
+.ds-num-md {
+    font-family: var(--font-mono);
+    font-size: 1.25rem;
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+.ds-num-sm {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    line-height: 1.2;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Elevation Shadows & Helpers */
+.shadow-bistro-card {
+    box-shadow: var(--shadow-card);
+}
+
+.shadow-bistro-elevated {
+    box-shadow: var(--shadow-elevated);
+}
+
+.shadow-bistro-floating {
+    box-shadow: var(--shadow-floating);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.receipt-serrated {
+    position: relative;
+}
+
+.receipt-serrated::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -7px;
+    height: 8px;
+    background-image: linear-gradient(135deg, var(--surface-inset) 50%, transparent 50%),
+        linear-gradient(225deg, var(--surface-inset) 50%, transparent 50%);
+    background-size: 12px 8px;
+    background-repeat: repeat-x;
 }
