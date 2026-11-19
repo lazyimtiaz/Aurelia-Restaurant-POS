@@ -1,5 +1,6 @@
-import type { PropsWithChildren } from 'react';
+import { type PropsWithChildren, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
+import { motion } from 'motion/react';
 import {
     BarChart3,
     Boxes,
@@ -9,13 +10,15 @@ import {
     Grid2X2,
     LayoutDashboard,
     Lock,
+    Menu,
     Settings,
     ShoppingBag,
     UtensilsCrossed,
     Wallet,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { AureliaMark, FloatingToaster, MotionDrawer, StatusPill } from '@/design-system';
 import { formatCents } from '@/lib/money';
+import { cn } from '@/lib/utils';
 import type { NavSectionKey, PosSharedProps } from '@/types/pos-app';
 
 interface PosAppLayoutProps extends PropsWithChildren {
@@ -45,8 +48,9 @@ const NAV_ITEMS: NavDefinition[] = [
 
 export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
     const page = usePage<PosSharedProps>();
-    const { auth, flash } = page.props;
+    const { auth } = page.props;
     const currentPath = page.url.split('?')[0];
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const staff = auth?.staff;
     const activeBranch = auth?.activeBranch;
@@ -60,13 +64,14 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
         .join('');
 
     const formattedDate = new Intl.DateTimeFormat('en-US', {
-        weekday: 'long',
+        weekday: 'short',
         month: 'short',
         day: 'numeric',
         year: 'numeric',
     }).format(new Date());
 
     const handleLock = () => {
+        setMobileMenuOpen(false);
         router.post('/lock');
     };
 
@@ -74,52 +79,106 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
         router.post('/branch/switch', { branch_id: branchId }, { preserveScroll: true });
     };
 
+    const renderNavLinks = (compact: boolean, onSelect?: () => void) => (
+        <nav aria-label="Primary Sidebar" className="space-y-1">
+            {visibleNav.map((item) => {
+                const Icon = item.icon;
+                const isActive =
+                    currentPath === item.href || currentPath.startsWith(`${item.href}/`);
+
+                return (
+                    <Link
+                        key={item.key}
+                        href={item.href}
+                        onClick={onSelect}
+                        title={compact ? item.label : undefined}
+                        className={cn(
+                            'group relative flex items-center rounded-xl transition-colors select-none',
+                            compact ? 'justify-center px-2 py-3' : 'gap-3 px-3.5 py-2.5 text-sm font-medium',
+                            isActive
+                                ? 'text-primary font-semibold'
+                                : 'text-stone-600 hover:bg-[var(--surface-inset)] hover:text-foreground',
+                        )}
+                    >
+                        {isActive && (
+                            <motion.span
+                                layoutId={compact ? 'sidebar-pill-tablet' : 'sidebar-pill-full'}
+                                transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                                className="absolute inset-0 rounded-xl border border-primary/20 bg-accent"
+                            />
+                        )}
+                        <Icon
+                            className={cn(
+                                'relative z-10 h-4.5 w-4.5 shrink-0 transition-transform duration-150 group-hover:scale-105',
+                                isActive ? 'text-primary' : 'text-stone-400 group-hover:text-stone-700',
+                            )}
+                        />
+                        {!compact && <span className="relative z-10 truncate">{item.label}</span>}
+                    </Link>
+                );
+            })}
+        </nav>
+    );
+
     return (
-        <div className="flex min-h-screen bg-background text-foreground">
-            <aside className="sticky top-0 hidden h-screen w-52 xl:w-60 shrink-0 flex-col justify-between border-r border-border bg-card px-3 py-5 md:flex">
-                <div className="space-y-6">
-                    <div className="flex items-center gap-3 px-2.5">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-                            <UtensilsCrossed className="h-5 w-5" />
+        <div className="flex min-h-screen w-full bg-background text-foreground">
+            <FloatingToaster variant="light" />
+
+            {/* Tablet Compact Rail (md..lg-1) */}
+            <aside className="sticky top-0 hidden h-screen w-20 shrink-0 flex-col justify-between border-r border-border bg-card px-2.5 py-5 md:flex lg:hidden">
+                <div className="flex flex-col items-center space-y-6">
+                    <Link href={staff?.home_route ?? '/pos'} title="Aurelia POS">
+                        <AureliaMark size="md" />
+                    </Link>
+                    {renderNavLinks(true)}
+                </div>
+
+                <div className="flex flex-col items-center gap-3 border-t border-border pt-4">
+                    {staff && (
+                        <div
+                            title={`${staff.name} · ${staff.role_label}`}
+                            className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-xs font-bold text-primary ring-1 ring-primary/20"
+                        >
+                            {initials}
                         </div>
+                    )}
+                    <button
+                        type="button"
+                        onClick={handleLock}
+                        title="Lock Terminal"
+                        aria-label="Lock Terminal"
+                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-stone-700 transition hover:border-primary/40 hover:bg-accent hover:text-primary cursor-pointer"
+                    >
+                        <Lock className="h-4 w-4" />
+                    </button>
+                </div>
+            </aside>
+
+            {/* Desktop Full Sidebar (lg+) */}
+            <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col justify-between border-r border-border bg-card px-3.5 py-5 lg:flex">
+                <div className="space-y-6">
+                    <Link
+                        href={staff?.home_route ?? '/pos'}
+                        className="flex items-center gap-3 px-2 rounded-xl focus:outline-none"
+                    >
+                        <AureliaMark size="md" />
                         <div className="min-w-0">
-                            <div className="truncate text-base font-bold tracking-tight">Aurelia POS</div>
+                            <div className="truncate text-[15px] font-bold tracking-tight text-foreground">
+                                Aurelia POS
+                            </div>
                             <div className="truncate text-xs text-muted-foreground">
                                 {activeBranch?.name ?? 'Dining Group'}
                             </div>
                         </div>
-                    </div>
+                    </Link>
 
-                    <nav aria-label="Primary Sidebar" className="space-y-1">
-                        {visibleNav.map((item) => {
-                            const Icon = item.icon;
-                            const isActive =
-                                currentPath === item.href || currentPath.startsWith(`${item.href}/`);
-
-                            return (
-                                <Link
-                                    key={item.key}
-                                    href={item.href}
-                                    className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                                        isActive
-                                            ? 'bg-orange-50 text-orange-600 shadow-2xs border border-orange-200/70'
-                                            : 'text-stone-600 hover:bg-muted hover:text-foreground'
-                                    }`}
-                                >
-                                    <Icon
-                                        className={`h-4 w-4 ${isActive ? 'text-orange-600' : 'text-stone-400'}`}
-                                    />
-                                    <span>{item.label}</span>
-                                </Link>
-                            );
-                        })}
-                    </nav>
+                    {renderNavLinks(false)}
                 </div>
 
                 <div className="space-y-3 border-t border-border pt-4">
                     {staff && (
-                        <div className="flex items-center gap-2.5 rounded-xl bg-muted/60 px-2.5 py-2">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-700">
+                        <div className="flex items-center gap-2.5 rounded-xl border border-border/70 bg-[var(--surface-inset)] px-2.5 py-2">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-primary ring-1 ring-primary/20">
                                 {initials}
                             </div>
                             <div className="min-w-0">
@@ -136,41 +195,118 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
                     <button
                         type="button"
                         onClick={handleLock}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium text-stone-700 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 cursor-pointer"
+                        className="flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-stone-700 transition hover:border-primary/40 hover:bg-accent hover:text-primary active:scale-[0.98] cursor-pointer"
                     >
-                        <Lock className="h-4 w-4" />
-                        Lock Terminal
+                        <Lock className="h-3.5 w-3.5" />
+                        <span>Lock Terminal</span>
                     </button>
                 </div>
             </aside>
 
+            {/* Mobile Drawer Navigation (<md) */}
+            <MotionDrawer
+                open={mobileMenuOpen}
+                onClose={() => setMobileMenuOpen(false)}
+                side="left"
+                title={
+                    <span className="flex items-center gap-2.5">
+                        <AureliaMark size="sm" />
+                        <span>Aurelia POS</span>
+                    </span>
+                }
+                description={activeBranch ? `${activeBranch.code} · ${activeBranch.name}` : undefined}
+            >
+                <div className="flex h-full flex-col justify-between p-4 space-y-6">
+                    <div className="space-y-4">
+                        {renderNavLinks(false, () => setMobileMenuOpen(false))}
+
+                        {staff?.can_switch_branch && (auth?.branches.length ?? 0) > 0 && (
+                            <div className="rounded-xl border border-border bg-[var(--surface-inset)] p-3 space-y-1.5">
+                                <span className="ds-overline block">Active Branch</span>
+                                <select
+                                    aria-label="Mobile Active Branch"
+                                    value={activeBranch?.id ?? ''}
+                                    onChange={(e) => {
+                                        handleBranchChange(Number(e.target.value));
+                                        setMobileMenuOpen(false);
+                                    }}
+                                    className="w-full rounded-lg border border-border bg-card px-2.5 py-2 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
+                                >
+                                    {auth?.branches.map((branch) => (
+                                        <option key={branch.id} value={branch.id}>
+                                            {branch.code} — {branch.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="space-y-3 border-t border-border pt-4">
+                        {staff && (
+                            <div className="flex items-center gap-2.5 rounded-xl bg-[var(--surface-inset)] p-2.5">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-primary">
+                                    {initials}
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="truncate text-xs font-semibold">{staff.name}</div>
+                                    <div className="truncate text-[11px] text-muted-foreground">
+                                        {staff.role_label}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        <button
+                            type="button"
+                            onClick={handleLock}
+                            className="flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground hover:border-primary/40 hover:bg-accent hover:text-primary cursor-pointer"
+                        >
+                            <Lock className="h-3.5 w-3.5" />
+                            <span>Lock Terminal</span>
+                        </button>
+                    </div>
+                </div>
+            </MotionDrawer>
+
+            {/* Main Viewport Column */}
             <div className="flex min-w-0 flex-1 flex-col">
-                <header className="sticky top-0 z-30 border-b border-border bg-card/90 px-4 py-3 backdrop-blur-md lg:px-6">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="min-w-0">
-                            {title ? (
-                                <>
-                                    <h1 className="truncate text-lg font-bold tracking-tight lg:text-xl">
-                                        {title}
-                                    </h1>
-                                    <p className="truncate text-xs text-muted-foreground">
-                                        {subtitle ?? formattedDate}
-                                    </p>
-                                </>
-                            ) : (
-                                <div className="text-xs font-medium text-muted-foreground">{formattedDate}</div>
-                            )}
+                <header className="sticky top-0 z-30 border-b border-border bg-card/90 px-4 py-3 backdrop-blur-md md:px-6 lg:px-8">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setMobileMenuOpen(true)}
+                                aria-label="Open navigation menu"
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-foreground transition hover:bg-secondary md:hidden cursor-pointer"
+                            >
+                                <Menu className="h-5 w-5" />
+                            </button>
+
+                            <div className="min-w-0">
+                                {title ? (
+                                    <>
+                                        <h1 className="truncate text-lg sm:text-xl font-bold tracking-[-0.02em] text-foreground">
+                                            {title}
+                                        </h1>
+                                        <p className="truncate ds-caption">
+                                            {subtitle ?? formattedDate}
+                                        </p>
+                                    </>
+                                ) : (
+                                    <div className="ds-caption font-medium">{formattedDate}</div>
+                                )}
+                            </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
                             {staff?.can_switch_branch && (auth?.branches.length ?? 0) > 0 ? (
-                                <label className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-medium">
-                                    <Building2 className="h-3.5 w-3.5 text-primary" />
+                                <label className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-border bg-[var(--surface-inset)] px-3 py-1.5 text-xs font-medium">
+                                    <Building2 className="h-3.5 w-3.5 shrink-0 text-primary" />
                                     <select
                                         aria-label="Active Branch"
                                         value={activeBranch?.id ?? ''}
                                         onChange={(e) => handleBranchChange(Number(e.target.value))}
-                                        className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+                                        className="max-w-[160px] truncate bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
                                     >
                                         {auth?.branches.map((branch) => (
                                             <option key={branch.id} value={branch.id}>
@@ -181,27 +317,30 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
                                 </label>
                             ) : (
                                 activeBranch && (
-                                    <Badge variant="outline" className="rounded-xl px-3 py-1.5 text-xs font-semibold">
+                                    <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border bg-[var(--surface-inset)] px-3 py-1 text-xs font-semibold text-foreground">
                                         <Building2 className="h-3.5 w-3.5 text-primary" />
-                                        {activeBranch.code} · {activeBranch.name}
-                                    </Badge>
+                                        <span>{activeBranch.code}</span>
+                                    </span>
                                 )
                             )}
 
                             {staff && allowed.has('shifts') && (
-                                <Link href="/shifts">
+                                <Link href="/shifts" className="hidden sm:inline-flex">
                                     {auth?.activeShift ? (
-                                        <Badge
-                                            variant="success"
-                                            className="rounded-xl px-3 py-1.5 text-xs font-semibold hover:opacity-90"
-                                        >
-                                            <Wallet className="h-3.5 w-3.5" />
-                                            Drawer Open · {formatCents(auth.activeShift.expected_cash_cents)}
-                                        </Badge>
+                                        <StatusPill
+                                            tone="success"
+                                            size="md"
+                                            pulse
+                                            icon={<Wallet className="h-3.5 w-3.5" />}
+                                            label={`Drawer ${formatCents(auth.activeShift.expected_cash_cents)}`}
+                                            className="font-mono"
+                                        />
                                     ) : (
-                                        <Badge variant="warning" className="rounded-xl px-3 py-1.5 text-xs font-semibold">
-                                            Shift Closed · Open Drawer
-                                        </Badge>
+                                        <StatusPill
+                                            tone="warning"
+                                            size="md"
+                                            label="Shift Closed"
+                                        />
                                     )}
                                 </Link>
                             )}
@@ -209,48 +348,16 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
                             <button
                                 type="button"
                                 onClick={handleLock}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-2.5 py-1.5 text-xs font-semibold text-stone-700 md:hidden cursor-pointer"
+                                className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-border bg-card px-2.5 py-1.5 text-xs font-semibold text-foreground md:hidden cursor-pointer"
                             >
-                                <Lock className="h-3.5 w-3.5" />
-                                Lock
+                                <Lock className="h-3.5 w-3.5 text-primary" />
+                                <span>Lock</span>
                             </button>
                         </div>
                     </div>
-
-                    <div className="mt-2.5 flex gap-1.5 overflow-x-auto pb-0.5 md:hidden">
-                        {visibleNav.map((item) => {
-                            const isActive =
-                                currentPath === item.href || currentPath.startsWith(`${item.href}/`);
-                            return (
-                                <Link
-                                    key={item.key}
-                                    href={item.href}
-                                    className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium ${
-                                        isActive
-                                            ? 'bg-orange-100 text-orange-700'
-                                            : 'bg-muted text-stone-600'
-                                    }`}
-                                >
-                                    {item.label}
-                                </Link>
-                            );
-                        })}
-                    </div>
                 </header>
 
-                {flash?.error && (
-                    <div className="border-b border-rose-500/30 bg-rose-50 px-4 py-2.5 text-center text-sm font-medium text-rose-700">
-                        {flash.error}
-                    </div>
-                )}
-
-                {flash?.success && (
-                    <div className="border-b border-emerald-500/30 bg-emerald-50 px-4 py-2.5 text-center text-sm font-medium text-emerald-700">
-                        {flash.success}
-                    </div>
-                )}
-
-                <main className="flex-1 p-4 lg:p-6">{children}</main>
+                <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
             </div>
         </div>
     );

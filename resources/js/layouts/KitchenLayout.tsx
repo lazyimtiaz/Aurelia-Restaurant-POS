@@ -1,34 +1,36 @@
 import type { PropsWithChildren } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeft, ChefHat, Lock } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Lock } from 'lucide-react';
+import { AureliaMark, FloatingToaster } from '@/design-system';
 import type { PosSharedProps } from '@/types/pos-app';
 
 export function KitchenLayout({ children }: PropsWithChildren) {
-    const { auth, flash } = usePage<PosSharedProps>().props;
+    const { auth } = usePage<PosSharedProps>().props;
     const staff = auth?.staff;
     const activeBranch = auth?.activeBranch;
     const canLeaveKitchen = staff ? staff.allowed_sections.some((s) => s !== 'kitchen') : false;
 
     return (
-        <div className="dark min-h-screen bg-zinc-950 text-zinc-50">
-            <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/95 px-4 py-3 backdrop-blur">
+        <div className="dark min-h-screen bg-[#0D0F14] text-slate-100">
+            <FloatingToaster variant="dark" />
+
+            <header className="sticky top-0 z-30 border-b border-[#282E3A] bg-[#0D0F14]/95 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8">
                 <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
-                            <ChefHat className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-base font-bold tracking-tight">Kitchen Display System</span>
+                    <div className="flex min-w-0 items-center gap-3">
+                        <AureliaMark size="md" variant="dark" />
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-base font-bold tracking-tight text-white">
+                                    Kitchen Display System
+                                </span>
                                 {activeBranch && (
-                                    <Badge variant="outline" className="border-zinc-700 bg-zinc-900 text-zinc-300">
+                                    <span className="inline-flex items-center rounded-full border border-slate-700 bg-[#161922] px-2.5 py-0.5 font-mono text-[11px] font-semibold text-orange-300">
                                         {activeBranch.code} · {activeBranch.name}
-                                    </Badge>
+                                    </span>
                                 )}
                             </div>
-                            <p className="text-xs text-zinc-400">
-                                {staff ? `${staff.name} · ${staff.role_label}` : 'Kitchen Line'}
+                            <p className="truncate text-xs text-slate-400">
+                                {staff ? `${staff.name} · ${staff.role_label}` : 'Kitchen Expediter Line'}
                             </p>
                         </div>
                     </div>
@@ -37,31 +39,25 @@ export function KitchenLayout({ children }: PropsWithChildren) {
                         {canLeaveKitchen && staff && (
                             <Link
                                 href={staff.home_route}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-800"
+                                className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-700 bg-[#161922] px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-[#1D212B]"
                             >
                                 <ArrowLeft className="h-3.5 w-3.5" />
-                                Exit KDS
+                                <span>Exit KDS</span>
                             </Link>
                         )}
                         <button
                             type="button"
                             onClick={() => router.post('/lock')}
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:border-amber-500/50 hover:text-amber-300 cursor-pointer"
+                            className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-700 bg-[#161922] px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-orange-500/50 hover:text-orange-300 active:scale-[0.98] cursor-pointer"
                         >
                             <Lock className="h-3.5 w-3.5" />
-                            Lock
+                            <span>Lock</span>
                         </button>
                     </div>
                 </div>
             </header>
 
-            {flash?.error && (
-                <div className="border-b border-rose-500/30 bg-rose-500/15 px-4 py-2 text-center text-sm text-rose-200">
-                    {flash.error}
-                </div>
-            )}
-
-            <main className="mx-auto max-w-7xl px-4 py-5">{children}</main>
+            <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">{children}</main>
         </div>
     );
 }

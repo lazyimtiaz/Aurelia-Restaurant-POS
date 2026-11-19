@@ -244,7 +244,7 @@ class AureliaEnterpriseSeeder extends Seeder
                 'slug' => 'wagyu-smash-burger',
                 'name' => 'Aurelia Wagyu Smash Burger',
                 'description' => 'Double dry-aged Wagyu patty, caramelized shallots, brioche.',
-                'image_path' => null,
+                'image_path' => '/images/menu/wagyu-smash-burger.jpg',
                 'prep_station' => PrepStation::Grill,
                 'allergen_tags' => ['gluten', 'dairy', 'sesame'],
                 'modifier_groups' => [$addons->id],
