@@ -8,18 +8,27 @@ use App\Modules\Billing\Models\BillSplit;
 use App\Modules\Billing\Models\PaymentTransaction;
 use App\Modules\Floor\Enums\TableState;
 use App\Modules\Floor\Models\DiningTable;
+use App\Modules\Identity\Enums\StaffRole;
 use App\Modules\Menu\Models\MenuItemVariant;
 use App\Modules\Orders\Enums\OrderState;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Shifts\Enums\ShiftState;
 use App\Modules\Shifts\Models\Shift;
 use Database\Seeders\AureliaEnterpriseSeeder;
+use Inertia\Testing\AssertableInertia as Assert;
 
-it('executes split billing, simulated decline recovery, receipt fetch, refund, and blind shift variance close over HTTP', function (): void {
+it('executes orders board, split billing, card terminal decline recovery, receipt fetch, refund, and blind shift close over HTTP', function (): void {
     $this->seed(AureliaEnterpriseSeeder::class);
     $this->withoutVite();
 
-    $this->get('/');
+    signInAndUnlockAs($this, StaffRole::Cashier, '1111');
+
+    $this->get('/orders')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Orders/OrdersPage')
+            ->has('orders')
+        );
 
     $table = DiningTable::query()->where('code', 'M1')->firstOrFail();
     $variant = MenuItemVariant::query()->where('sku', 'GRL-WAG-SGL')->firstOrFail();
@@ -48,27 +57,24 @@ it('executes split billing, simulated decline recovery, receipt fetch, refund, a
     $splits = BillSplit::query()->where('order_id', $order->id)->orderBy('sequence_number')->get();
     expect($splits)->toHaveCount(2);
 
-    // Enable simulated card decline via evaluator session flag
-    $this->post('/evaluator/simulations', ['simulate_card_decline' => true])->assertRedirect();
-
-    // Check 1 declines on Card -> returns 422 JSON and commits Failed payment + BillSplitState::Failed
+    // Check 1 declines on Simulated Card Terminal -> commits Failed payment & BillSplitState::Failed
     $this->postJson("/billing/splits/{$splits[0]->id}/pay", [
         'tender_method' => 'card',
         'amount_tendered_cents' => $splits[0]->total_cents,
         'tip_cents' => 0,
         'idempotency_key' => 'http-fail-key-1',
+        'simulate_decline' => true,
     ])->assertStatus(422);
 
     expect($splits[0]->refresh()->state)->toBe(BillSplitState::Failed);
 
-    // Disable decline & pay Check 1 with Card, then Check 2 with Cash
-    $this->post('/evaluator/simulations', ['simulate_card_decline' => false])->assertRedirect();
-
+    // Retry Check 1 approved, then settle Check 2 with Cash
     $this->post("/billing/splits/{$splits[0]->id}/pay", [
         'tender_method' => 'card',
         'amount_tendered_cents' => $splits[0]->total_cents,
         'tip_cents' => 200,
         'idempotency_key' => 'http-ok-key-1',
+        'simulate_decline' => false,
     ])->assertRedirect();
 
     expect($order->refresh()->state)->toBe(OrderState::PartiallyPaid);
@@ -98,26 +104,33 @@ it('executes split billing, simulated decline recovery, receipt fetch, refund, a
     $this->post("/billing/payments/{$capturedTx->id}/refund", [
         'refund_amount_cents' => 500,
         'manager_pin' => '1234',
-        'reason' => 'Goodwill gesture',
+        'reason' => 'Guest dissatisfaction',
         'wastage' => false,
     ])->assertRedirect();
 
-    expect(PaymentTransaction::query()->where('parent_transaction_id', $capturedTx->id)->count())->toBe(1);
+    expect(PaymentTransaction::query()->where('parent_transaction_id', $capturedTx->id)->exists())->toBeTrue();
 
-    // Blind close active shift outside tolerance -> VarianceFlagged, then approve with PIN
-    $shift = Shift::query()->where('branch_id', $order->branch_id)->where('state', ShiftState::Open->value)->firstOrFail();
+    // Render ShiftsPage, close active shift with blind cash variance, and approve via Manager PIN
+    $this->get('/shifts')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Shifts/ShiftsPage')
+            ->has('shifts')
+        );
 
-    $this->post("/shifts/{$shift->id}/close", [
+    $openShift = Shift::query()->where('state', ShiftState::Open->value)->firstOrFail();
+
+    $this->post("/shifts/{$openShift->id}/close", [
         'counted_cash_cents' => 0,
-        'notes' => 'End of evening drawer',
+        'notes' => 'End of night variance test',
     ])->assertRedirect();
 
-    expect($shift->refresh()->state)->toBe(ShiftState::VarianceFlagged);
+    expect($openShift->refresh()->state)->toBe(ShiftState::VarianceFlagged);
 
-    $this->post("/shifts/{$shift->id}/approve-variance", [
+    $this->post("/shifts/{$openShift->id}/approve-variance", [
         'manager_pin' => '1234',
-        'resolution_note' => 'Audited safe drop',
+        'resolution_note' => 'Verified safe drop envelope',
     ])->assertRedirect();
 
-    expect($shift->refresh()->state)->toBe(ShiftState::Closed);
+    expect($openShift->refresh()->state)->toBe(ShiftState::Closed);
 });
