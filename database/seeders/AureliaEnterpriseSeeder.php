@@ -105,7 +105,16 @@ class AureliaEnterpriseSeeder extends Seeder
     private function seedStaff(array $branches): void
     {
         $password = Hash::make('password');
-        $managerPin = Hash::make('1234');
+        $pinHashes = [
+            StaffRole::EnterpriseSystemAdmin->value => Hash::make('1234'),
+            StaffRole::RestaurantOwner->value => Hash::make('1234'),
+            StaffRole::BranchManager->value => Hash::make('1234'),
+            StaffRole::Cashier->value => Hash::make('1111'),
+            StaffRole::Waiter->value => Hash::make('2222'),
+            StaffRole::Chef->value => Hash::make('3333'),
+            StaffRole::KitchenExpediter->value => Hash::make('4444'),
+            StaffRole::InventoryManager->value => Hash::make('5555'),
+        ];
 
         User::query()->updateOrCreate(
             ['email' => 'sysadmin@aurelia.test'],
@@ -114,7 +123,7 @@ class AureliaEnterpriseSeeder extends Seeder
                 'name' => 'Alex Mercer (Enterprise Admin)',
                 'role' => StaffRole::EnterpriseSystemAdmin,
                 'password' => $password,
-                'pin_hash' => $managerPin,
+                'pin_hash' => $pinHashes[StaffRole::EnterpriseSystemAdmin->value],
             ],
         );
 
@@ -125,7 +134,7 @@ class AureliaEnterpriseSeeder extends Seeder
                 'name' => 'Elena Vance (Restaurant Owner)',
                 'role' => StaffRole::RestaurantOwner,
                 'password' => $password,
-                'pin_hash' => $managerPin,
+                'pin_hash' => $pinHashes[StaffRole::RestaurantOwner->value],
             ],
         );
 
@@ -149,7 +158,7 @@ class AureliaEnterpriseSeeder extends Seeder
                         'name' => "{$role->label()} ({$code})",
                         'role' => $role,
                         'password' => $password,
-                        'pin_hash' => $role->canAuthorizeManagerPin() ? $managerPin : null,
+                        'pin_hash' => $pinHashes[$role->value],
                         'assigned_station' => $role === StaffRole::Chef ? PrepStation::Grill->value : null,
                     ],
                 );

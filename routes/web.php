@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\Auth\BranchContextController;
+use App\Http\Controllers\Auth\StaffLockController;
+use App\Http\Controllers\Auth\TerminalAuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\EvaluatorDemoController;
 use App\Http\Controllers\ExecutiveDashboardController;
@@ -13,9 +16,27 @@ use App\Http\Controllers\PosController;
 use App\Http\Controllers\ShiftReconciliationController;
 use App\Http\Controllers\SplitScreenDemoController;
 use App\Http\Middleware\RequireOpenShiftMiddleware;
+use App\Modules\Identity\Services\CurrentStaffContext;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', [EvaluatorDemoController::class, 'index'])->name('dashboard');
+Route::get('/login', [TerminalAuthController::class, 'show'])->name('login');
+Route::post('/login', [TerminalAuthController::class, 'store'])->name('terminal.login');
+
+Route::middleware('terminal')->group(function (): void {
+    Route::get('/lock', [StaffLockController::class, 'show'])->name('lock.show');
+    Route::post('/lock/unlock', [StaffLockController::class, 'unlock'])->name('lock.unlock');
+    Route::post('/terminal/sign-out', [TerminalAuthController::class, 'signOut'])->name('terminal.sign-out');
+});
+
+Route::middleware(['terminal', 'staff'])->group(function (): void {
+    Route::get('/', function (Request $request, CurrentStaffContext $staffContext) {
+        return redirect($staffContext->requireStaff($request)->role->homeRoute());
+    })->name('home');
+
+    Route::post('/lock', [StaffLockController::class, 'lock'])->name('lock');
+    Route::post('/branch/switch', [BranchContextController::class, 'switch'])->name('branch.switch');
+});
 
 Route::prefix('evaluator')->name('evaluator.')->group(function (): void {
     Route::post('/switch-role', [EvaluatorDemoController::class, 'switchRole'])->name('switch-role');

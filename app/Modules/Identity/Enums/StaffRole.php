@@ -36,6 +36,72 @@ enum StaffRole: string
         };
     }
 
+    public function canSignInTerminal(): bool
+    {
+        return match ($this) {
+            self::EnterpriseSystemAdmin,
+            self::RestaurantOwner,
+            self::BranchManager => true,
+            default => false,
+        };
+    }
+
+    public function canSwitchActiveBranch(): bool
+    {
+        return match ($this) {
+            self::EnterpriseSystemAdmin,
+            self::RestaurantOwner => true,
+            default => false,
+        };
+    }
+
+    public function homeRoute(): string
+    {
+        return match ($this) {
+            self::EnterpriseSystemAdmin,
+            self::RestaurantOwner,
+            self::BranchManager => '/dashboard',
+            self::Cashier => '/pos',
+            self::Waiter => '/tables',
+            self::Chef,
+            self::KitchenExpediter => '/kitchen',
+            self::InventoryManager => '/inventory',
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function allowedSections(): array
+    {
+        return match ($this) {
+            self::EnterpriseSystemAdmin,
+            self::RestaurantOwner,
+            self::BranchManager => [
+                'dashboard',
+                'pos',
+                'orders',
+                'tables',
+                'kitchen',
+                'menu',
+                'inventory',
+                'reports',
+                'shifts',
+                'settings',
+            ],
+            self::Cashier => ['pos', 'orders', 'tables', 'shifts'],
+            self::Waiter => ['tables', 'pos', 'orders'],
+            self::Chef,
+            self::KitchenExpediter => ['kitchen'],
+            self::InventoryManager => ['inventory', 'menu', 'reports'],
+        };
+    }
+
+    public function canAccessSection(string $section): bool
+    {
+        return in_array($section, $this->allowedSections(), true);
+    }
+
     public function label(): string
     {
         return match ($this) {

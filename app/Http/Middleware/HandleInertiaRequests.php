@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
-use App\Modules\Identity\Queries\GetEvaluatorContextQuery;
+use App\Modules\Identity\Services\CurrentStaffContext;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -13,7 +13,7 @@ class HandleInertiaRequests extends Middleware
     protected $rootView = 'app';
 
     public function __construct(
-        private readonly GetEvaluatorContextQuery $getEvaluatorContext,
+        private readonly CurrentStaffContext $staffContext,
     ) {}
 
     public function version(Request $request): ?string
@@ -28,7 +28,7 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
-            'evaluator' => fn (): array => $this->getEvaluatorContext->execute($request),
+            'auth' => fn (): ?array => $this->staffContext->toInertiaShared($request),
             'flash' => [
                 'success' => fn (): mixed => $request->hasSession() ? $request->session()->get('success') : null,
                 'error' => fn (): mixed => $request->hasSession() ? $request->session()->get('error') : null,
