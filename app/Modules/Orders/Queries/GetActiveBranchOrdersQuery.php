@@ -46,6 +46,17 @@ final class GetActiveBranchOrdersQuery
     /**
      * @return list<array<string, mixed>>
      */
+    public function boardOrders(int $branchId, int $recentPaidLimit = 18): array
+    {
+        return array_values([
+            ...$this->execute($branchId),
+            ...$this->recentPaid($branchId, $recentPaidLimit),
+        ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
     public function recentPaid(int $branchId, int $limit = 10): array
     {
         $orders = Order::query()

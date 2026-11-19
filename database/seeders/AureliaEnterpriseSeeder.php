@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Modules\Billing\Actions\RequestOrderBillAction;
+use App\Modules\Billing\Actions\SettleBillSplitAction;
+use App\Modules\Billing\DTOs\SettleBillSplitData;
+use App\Modules\Billing\Enums\TenderMethod;
 use App\Modules\Floor\Enums\TableState;
 use App\Modules\Floor\Models\DiningTable;
 use App\Modules\Floor\Models\FloorZone;
@@ -13,6 +17,9 @@ use App\Modules\Inventory\Enums\MeasurementUnit;
 use App\Modules\Inventory\Models\BranchIngredientStock;
 use App\Modules\Inventory\Models\Ingredient;
 use App\Modules\Inventory\Models\RecipeItem;
+use App\Modules\Kitchen\Actions\BumpKitchenItemStatusAction;
+use App\Modules\Kitchen\Actions\ServeKitchenTicketExpoAction;
+use App\Modules\Kitchen\Enums\ItemPrepState;
 use App\Modules\Menu\Enums\PrepStation;
 use App\Modules\Menu\Models\BranchMenuOverride;
 use App\Modules\Menu\Models\MenuCategory;
@@ -222,6 +229,7 @@ class AureliaEnterpriseSeeder extends Seeder
                 'slug' => 'burrata-heirloom-salad',
                 'name' => 'Burrata & Heirloom Tomato',
                 'description' => 'Creamy Pugliese burrata, charred sourdough, aged balsamic.',
+                'image_path' => '/images/menu/burrata-heirloom-salad.jpg',
                 'prep_station' => PrepStation::ColdSalad,
                 'allergen_tags' => ['dairy', 'gluten'],
                 'modifier_groups' => [$addons->id],
@@ -234,6 +242,7 @@ class AureliaEnterpriseSeeder extends Seeder
                 'slug' => 'wagyu-smash-burger',
                 'name' => 'Aurelia Wagyu Smash Burger',
                 'description' => 'Double dry-aged Wagyu patty, caramelized shallots, brioche.',
+                'image_path' => null,
                 'prep_station' => PrepStation::Grill,
                 'allergen_tags' => ['gluten', 'dairy', 'sesame'],
                 'modifier_groups' => [$addons->id],
@@ -247,6 +256,7 @@ class AureliaEnterpriseSeeder extends Seeder
                 'slug' => 'charred-prime-ribeye',
                 'name' => 'Charred Prime Ribeye',
                 'description' => 'Oak-grilled prime cut finished with rosemary bone marrow jus.',
+                'image_path' => null,
                 'prep_station' => PrepStation::Grill,
                 'allergen_tags' => ['dairy'],
                 'modifier_groups' => [$doneness->id],
@@ -260,6 +270,7 @@ class AureliaEnterpriseSeeder extends Seeder
                 'slug' => 'lobster-thermidor',
                 'name' => 'Butter-Poached Lobster Thermidor',
                 'description' => 'Maine lobster tail, cognac mustard cream, gruyère crust.',
+                'image_path' => null,
                 'prep_station' => PrepStation::Grill,
                 'allergen_tags' => ['shellfish', 'dairy'],
                 'modifier_groups' => [],
@@ -271,7 +282,8 @@ class AureliaEnterpriseSeeder extends Seeder
                 'category' => 'artisan-pastry',
                 'slug' => 'valrhona-lava-torte',
                 'name' => 'Valrhona Dark Chocolate Torte',
-                'description' => 'Warm 70% ganache center,Tahitian vanilla bean gelato.',
+                'description' => 'Warm 70% ganache center, Tahitian vanilla bean gelato.',
+                'image_path' => '/images/menu/valrhona-lava-torte.jpg',
                 'prep_station' => PrepStation::Pastry,
                 'allergen_tags' => ['dairy', 'eggs', 'gluten'],
                 'modifier_groups' => [],
@@ -284,6 +296,7 @@ class AureliaEnterpriseSeeder extends Seeder
                 'slug' => 'yuzu-elderflower-spritz',
                 'name' => 'Yuzu & Elderflower Spritz',
                 'description' => 'Zero-proof botanical spritz with fresh yuzu zest and prosecco essence.',
+                'image_path' => null,
                 'prep_station' => PrepStation::Bar,
                 'allergen_tags' => [],
                 'modifier_groups' => [$barMods->id],
@@ -302,6 +315,7 @@ class AureliaEnterpriseSeeder extends Seeder
                     'menu_category_id' => $categoryModels[$spec['category']]->id,
                     'name' => $spec['name'],
                     'description' => $spec['description'],
+                    'image_path' => $spec['image_path'],
                     'prep_station' => $spec['prep_station'],
                     'allergen_tags' => $spec['allergen_tags'],
                     'is_active' => true,
@@ -497,6 +511,79 @@ class AureliaEnterpriseSeeder extends Seeder
         }
 
         app(FireOrderRoundAction::class)->execute($order->id, $waiter->id);
+
+        $this->seedCompletedTakeawaySample($dtf, $shift, $waiter, $variants);
+    }
+
+    /**
+     * @param  array<string, MenuItemVariant>  $variants
+     */
+    private function seedCompletedTakeawaySample(
+        Branch $branch,
+        Shift $shift,
+        User $waiter,
+        array $variants,
+    ): void {
+        if (! isset($variants['SAL-BUR-REG'], $variants['GRL-RIB-300'], $variants['PAS-TOR-IND'])) {
+            return;
+        }
+
+        $cashier = User::query()
+            ->where('branch_id', $branch->id)
+            ->where('role', StaffRole::Cashier->value)
+            ->first() ?? $waiter;
+        $chef = User::query()
+            ->where('branch_id', $branch->id)
+            ->where('role', StaffRole::Chef->value)
+            ->first() ?? $waiter;
+        $expo = User::query()
+            ->where('branch_id', $branch->id)
+            ->where('role', StaffRole::KitchenExpediter->value)
+            ->first() ?? $waiter;
+
+        $sample = app(OpenOrderTabAction::class)->execute(
+            branchId: $branch->id,
+            shiftId: $shift->id,
+            serverId: $cashier->id,
+            serviceType: ServiceType::Takeaway,
+            tableId: null,
+            guestCount: 2,
+            customerName: 'Jordan Patel',
+        );
+
+        $item1 = app(AddDraftOrderItemAction::class)->execute($sample->id, new OrderItemInputData(
+            menuItemVariantId: $variants['SAL-BUR-REG']->id,
+            quantity: 1,
+        ));
+        $item2 = app(AddDraftOrderItemAction::class)->execute($sample->id, new OrderItemInputData(
+            menuItemVariantId: $variants['GRL-RIB-300']->id,
+            quantity: 1,
+        ));
+        $item3 = app(AddDraftOrderItemAction::class)->execute($sample->id, new OrderItemInputData(
+            menuItemVariantId: $variants['PAS-TOR-IND']->id,
+            quantity: 1,
+        ));
+
+        $ticket = app(FireOrderRoundAction::class)->execute($sample->id, $cashier->id);
+        $bump = app(BumpKitchenItemStatusAction::class);
+        foreach ([$item1, $item2, $item3] as $it) {
+            $bump->execute($it->id, ItemPrepState::InPrep, $chef->id);
+            $bump->execute($it->id, ItemPrepState::Ready, $chef->id);
+        }
+        app(ServeKitchenTicketExpoAction::class)->execute($ticket->id, $expo->id);
+
+        $billing = app(RequestOrderBillAction::class)->execute($sample->id);
+        $split = $billing->billSplits->firstOrFail();
+
+        app(SettleBillSplitAction::class)->execute(new SettleBillSplitData(
+            billSplitId: $split->id,
+            shiftId: $shift->id,
+            actorUserId: $cashier->id,
+            tenderMethod: TenderMethod::Card,
+            amountTenderedCents: $split->total_cents,
+            tipCents: 300,
+            idempotencyKey: 'seed-dtf-sample-takeaway-1',
+        ));
     }
 
     /**

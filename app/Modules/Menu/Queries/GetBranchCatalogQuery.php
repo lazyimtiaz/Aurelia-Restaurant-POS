@@ -45,6 +45,7 @@ final class GetBranchCatalogQuery
                         'name' => $item->name,
                         'slug' => $item->slug,
                         'description' => $item->description,
+                        'image_path' => $item->image_path,
                         'prep_station' => $item->prep_station->value,
                         'prep_station_label' => $item->prep_station->label(),
                         'allergen_tags' => $item->allergen_tags ?? [],

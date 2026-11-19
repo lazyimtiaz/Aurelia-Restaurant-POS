@@ -17,6 +17,7 @@ class MenuItem extends Model
         'name',
         'slug',
         'description',
+        'image_path',
         'prep_station',
         'allergen_tags',
         'is_active',

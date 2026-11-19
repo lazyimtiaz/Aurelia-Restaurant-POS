@@ -20,7 +20,8 @@ use App\Modules\Billing\Enums\TenderMethod;
 use App\Modules\Billing\Exceptions\CannotReopenPartiallyPaidOrderException;
 use App\Modules\Billing\Exceptions\RefundExceedsCapturedAmountException;
 use App\Modules\Identity\Exceptions\InvalidManagerPinException;
-use App\Modules\Identity\Queries\GetEvaluatorContextQuery;
+use App\Modules\Identity\Services\CurrentStaffContext;
+use App\Modules\Shifts\Queries\FindActiveOpenShiftQuery;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -101,7 +102,8 @@ final class BillingController extends Controller
     public function paySplit(
         Request $request,
         int $billSplitId,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
+        FindActiveOpenShiftQuery $findActiveShift,
         SettleBillSplitAction $settleSplit,
     ): RedirectResponse {
         $validated = $request->validate([
@@ -109,23 +111,23 @@ final class BillingController extends Controller
             'amount_tendered_cents' => ['required', 'integer', 'min:0'],
             'tip_cents' => ['nullable', 'integer', 'min:0'],
             'idempotency_key' => ['required', 'string', 'max:100'],
+            'simulate_decline' => ['sometimes', 'boolean'],
         ]);
 
-        $context = $getEvaluatorContext->execute($request);
-        $shiftId = (int) ($context['activeShift']['id'] ?? 0);
-        $actorId = (int) $context['activeUser']['id'];
-        $simulateDecline = (bool) ($context['simulations']['simulateCardDecline'] ?? false);
+        $staff = $staffContext->requireStaff($request);
+        $branch = $staffContext->requireActiveBranch($request);
+        $shift = $findActiveShift->execute($branch->id, $staff->id);
 
         try {
             $tx = $settleSplit->execute(new SettleBillSplitData(
                 billSplitId: $billSplitId,
-                shiftId: $shiftId,
-                actorUserId: $actorId,
+                shiftId: $shift?->id ?? 0,
+                actorUserId: $staff->id,
                 tenderMethod: TenderMethod::from($validated['tender_method']),
                 amountTenderedCents: (int) $validated['amount_tendered_cents'],
                 tipCents: (int) ($validated['tip_cents'] ?? 0),
                 idempotencyKey: (string) $validated['idempotency_key'],
-                simulateDecline: $simulateDecline,
+                simulateDecline: (bool) ($validated['simulate_decline'] ?? false),
             ));
         } catch (DomainException|InvalidArgumentException $e) {
             throw ValidationException::withMessages(['payment' => $e->getMessage()]);
@@ -133,7 +135,7 @@ final class BillingController extends Controller
 
         if ($tx->state === PaymentState::Failed) {
             throw ValidationException::withMessages([
-                'payment' => $tx->failure_reason ?? 'Payment declined by issuer.',
+                'payment' => $tx->failure_reason ?? 'Card declined by simulated payment terminal.',
             ]);
         }
 
@@ -145,7 +147,8 @@ final class BillingController extends Controller
     public function refundPayment(
         Request $request,
         int $paymentId,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
+        FindActiveOpenShiftQuery $findActiveShift,
         RefundPaymentAction $refundPayment,
     ): RedirectResponse {
         $validated = $request->validate([
@@ -155,19 +158,19 @@ final class BillingController extends Controller
             'wastage' => ['required', 'boolean'],
         ]);
 
-        $context = $getEvaluatorContext->execute($request);
-        $shiftId = (int) ($context['activeShift']['id'] ?? 0);
-        $actorId = (int) $context['activeUser']['id'];
+        $staff = $staffContext->requireStaff($request);
+        $branch = $staffContext->requireActiveBranch($request);
+        $shift = $findActiveShift->execute($branch->id, $staff->id);
 
         try {
             $refundPayment->execute(new RefundPaymentData(
                 paymentTransactionId: $paymentId,
                 refundAmountCents: (int) $validated['refund_amount_cents'],
                 managerPin: (string) $validated['manager_pin'],
-                actorUserId: $actorId,
+                actorUserId: $staff->id,
                 reason: (string) $validated['reason'],
                 wastage: (bool) $validated['wastage'],
-                activeShiftId: $shiftId,
+                activeShiftId: $shift?->id ?? 0,
             ));
         } catch (InvalidManagerPinException $e) {
             throw ValidationException::withMessages(['manager_pin' => $e->getMessage()]);

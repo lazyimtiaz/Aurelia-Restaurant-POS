@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Modules\Identity\Queries\GetEvaluatorContextQuery;
+use App\Modules\Identity\Services\CurrentStaffContext;
 use App\Modules\Kitchen\Actions\BumpKitchenItemStatusAction;
 use App\Modules\Kitchen\Actions\ServeKitchenTicketExpoAction;
 use App\Modules\Kitchen\Enums\ItemPrepState;
@@ -23,14 +23,18 @@ final class KdsController extends Controller
 {
     public function index(
         Request $request,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         GetActiveKdsTicketsQuery $getActiveTickets,
     ): Response {
-        $context = $getEvaluatorContext->execute($request);
-        $branchId = (int) $context['activeBranch']['id'];
+        $staff = $staffContext->requireStaff($request);
+        $branch = $staffContext->requireActiveBranch($request);
 
         $stationParam = $request->query('station');
         $station = is_string($stationParam) ? PrepStation::tryFrom($stationParam) : null;
+
+        if ($station === null && $staff->assigned_station !== null) {
+            $station = PrepStation::tryFrom($staff->assigned_station);
+        }
 
         $stations = array_map(
             static fn (PrepStation $s): array => [
@@ -40,8 +44,8 @@ final class KdsController extends Controller
             PrepStation::cases(),
         );
 
-        return Inertia::render('Kds/KdsWorkspace', [
-            'tickets' => $getActiveTickets->execute($branchId, $station)->values()->all(),
+        return Inertia::render('Kitchen/KitchenPage', [
+            'tickets' => $getActiveTickets->execute($branch->id, $station)->values()->all(),
             'stations' => $stations,
             'activeStation' => $station?->value,
         ]);
@@ -50,18 +54,17 @@ final class KdsController extends Controller
     public function bumpItem(
         Request $request,
         int $itemId,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         BumpKitchenItemStatusAction $bumpItem,
     ): RedirectResponse {
         $validated = $request->validate([
             'target_state' => ['required', Rule::enum(ItemPrepState::class)],
         ]);
 
-        $context = $getEvaluatorContext->execute($request);
-        $chefId = (int) $context['activeUser']['id'];
+        $staff = $staffContext->requireStaff($request);
 
         try {
-            $bumpItem->execute($itemId, ItemPrepState::from($validated['target_state']), $chefId);
+            $bumpItem->execute($itemId, ItemPrepState::from($validated['target_state']), $staff->id);
         } catch (DomainException $e) {
             throw ValidationException::withMessages(['item' => $e->getMessage()]);
         }
@@ -72,15 +75,13 @@ final class KdsController extends Controller
     public function serveTicket(
         Request $request,
         int $ticketId,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         ServeKitchenTicketExpoAction $serveTicket,
     ): RedirectResponse {
-        $context = $getEvaluatorContext->execute($request);
-        $expoId = (int) $context['activeUser']['id'];
-        $simulateLowStock = (bool) ($context['simulations']['triggerLowStockAuto86'] ?? false);
+        $staff = $staffContext->requireStaff($request);
 
         try {
-            $serveTicket->execute($ticketId, $expoId, $simulateLowStock);
+            $serveTicket->execute($ticketId, $staff->id, false);
         } catch (TicketNotReadyForExpoException $e) {
             throw ValidationException::withMessages(['ticket' => $e->getMessage()]);
         }

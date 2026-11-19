@@ -4,27 +4,39 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Modules\Identity\Enums\StaffRole;
-use App\Modules\Identity\Queries\GetEvaluatorContextQuery;
+use App\Modules\Identity\Services\CurrentStaffContext;
 use App\Modules\Inventory\Actions\ReceiveSupplierStockAction;
 use App\Modules\Inventory\Actions\RecordManualWastageAction;
+use App\Modules\Inventory\Queries\GetBranchInventoryLedgerQuery;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Inertia\Response;
 use InvalidArgumentException;
 
 final class InventoryController extends Controller
 {
+    public function index(
+        Request $request,
+        CurrentStaffContext $staffContext,
+        GetBranchInventoryLedgerQuery $getInventory,
+    ): Response {
+        $branch = $staffContext->requireActiveBranch($request);
+
+        return Inertia::render('Inventory/InventoryPage', [
+            'inventory' => $getInventory->execute($branch->id),
+        ]);
+    }
+
     public function receive(
         Request $request,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         ReceiveSupplierStockAction $receiveStock,
     ): RedirectResponse {
-        $context = $getEvaluatorContext->execute($request);
-        $activeRole = StaffRole::from((string) $context['activeUser']['role']);
-
-        abort_unless($activeRole->canAccessExecutiveWorkspace(), 403);
+        $staff = $staffContext->requireStaff($request);
+        $activeBranch = $staffContext->requireActiveBranch($request);
 
         $validated = $request->validate([
             'branch_id' => ['nullable', 'integer', 'min:1'],
@@ -34,10 +46,9 @@ final class InventoryController extends Controller
             'supplier_ref' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $branchId = isset($validated['branch_id'])
+        $branchId = ($staff->role->canSwitchActiveBranch() && isset($validated['branch_id']))
             ? (int) $validated['branch_id']
-            : (int) $context['activeBranch']['id'];
-        $actorId = (int) $context['activeUser']['id'];
+            : $activeBranch->id;
 
         try {
             $receiveStock->execute(
@@ -46,7 +57,7 @@ final class InventoryController extends Controller
                 quantity: (int) $validated['quantity'],
                 unitCostCents: (int) $validated['unit_cost_cents'],
                 supplierRef: (string) ($validated['supplier_ref'] ?? 'Direct Delivery'),
-                actorUserId: $actorId,
+                actorUserId: $staff->id,
             );
         } catch (DomainException|InvalidArgumentException $e) {
             throw ValidationException::withMessages(['inventory' => $e->getMessage()]);
@@ -57,13 +68,11 @@ final class InventoryController extends Controller
 
     public function wastage(
         Request $request,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         RecordManualWastageAction $recordWastage,
     ): RedirectResponse {
-        $context = $getEvaluatorContext->execute($request);
-        $activeRole = StaffRole::from((string) $context['activeUser']['role']);
-
-        abort_unless($activeRole->canAccessExecutiveWorkspace(), 403);
+        $staff = $staffContext->requireStaff($request);
+        $activeBranch = $staffContext->requireActiveBranch($request);
 
         $validated = $request->validate([
             'branch_id' => ['nullable', 'integer', 'min:1'],
@@ -72,10 +81,9 @@ final class InventoryController extends Controller
             'reason' => ['required', 'string', 'max:180'],
         ]);
 
-        $branchId = isset($validated['branch_id'])
+        $branchId = ($staff->role->canSwitchActiveBranch() && isset($validated['branch_id']))
             ? (int) $validated['branch_id']
-            : (int) $context['activeBranch']['id'];
-        $actorId = (int) $context['activeUser']['id'];
+            : $activeBranch->id;
 
         try {
             $recordWastage->execute(
@@ -83,7 +91,7 @@ final class InventoryController extends Controller
                 ingredientId: (int) $validated['ingredient_id'],
                 quantity: (int) $validated['quantity'],
                 reason: (string) $validated['reason'],
-                actorUserId: $actorId,
+                actorUserId: $staff->id,
             );
         } catch (DomainException|InvalidArgumentException $e) {
             throw ValidationException::withMessages(['inventory' => $e->getMessage()]);

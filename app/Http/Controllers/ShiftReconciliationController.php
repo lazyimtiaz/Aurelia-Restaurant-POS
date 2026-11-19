@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Modules\Identity\Exceptions\InvalidManagerPinException;
-use App\Modules\Identity\Queries\GetEvaluatorContextQuery;
+use App\Modules\Identity\Services\CurrentStaffContext;
 use App\Modules\Shifts\Actions\ApproveShiftVarianceAction;
 use App\Modules\Shifts\Actions\CloseShiftAction;
 use App\Modules\Shifts\Actions\OpenShiftAction;
@@ -16,38 +16,43 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Inertia\Response;
 use InvalidArgumentException;
 
 final class ShiftReconciliationController extends Controller
 {
     public function index(
         Request $request,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         GetBranchShiftsQuery $getBranchShifts,
-    ): JsonResponse {
-        $context = $getEvaluatorContext->execute($request);
-        $branchId = (int) $context['activeBranch']['id'];
+    ): Response|JsonResponse {
+        $branch = $staffContext->requireActiveBranch($request);
+        $shifts = $getBranchShifts->execute($branch->id);
 
-        return response()->json([
-            'shifts' => $getBranchShifts->execute($branchId),
+        if ($request->wantsJson() && ! $request->inertia()) {
+            return response()->json(['shifts' => $shifts]);
+        }
+
+        return Inertia::render('Shifts/ShiftsPage', [
+            'shifts' => $shifts,
         ]);
     }
 
     public function openShift(
         Request $request,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         OpenShiftAction $openShift,
     ): RedirectResponse {
         $validated = $request->validate([
             'opening_cash_cents' => ['required', 'integer', 'min:0'],
         ]);
 
-        $context = $getEvaluatorContext->execute($request);
-        $branchId = (int) $context['activeBranch']['id'];
-        $userId = (int) $context['activeUser']['id'];
+        $staff = $staffContext->requireStaff($request);
+        $branch = $staffContext->requireActiveBranch($request);
 
         try {
-            $openShift->execute($branchId, $userId, (int) $validated['opening_cash_cents']);
+            $openShift->execute($branch->id, $staff->id, (int) $validated['opening_cash_cents']);
         } catch (DomainException|InvalidArgumentException $e) {
             throw ValidationException::withMessages(['shift' => $e->getMessage()]);
         }
@@ -85,7 +90,7 @@ final class ShiftReconciliationController extends Controller
     public function approveVariance(
         Request $request,
         int $shiftId,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         ApproveShiftVarianceAction $approveVariance,
     ): RedirectResponse {
         $validated = $request->validate([
@@ -93,14 +98,13 @@ final class ShiftReconciliationController extends Controller
             'resolution_note' => ['required', 'string', 'max:250'],
         ]);
 
-        $context = $getEvaluatorContext->execute($request);
-        $actorId = (int) $context['activeUser']['id'];
+        $staff = $staffContext->requireStaff($request);
 
         try {
             $approveVariance->execute(
                 shiftId: $shiftId,
                 managerPin: (string) $validated['manager_pin'],
-                actorUserId: $actorId,
+                actorUserId: $staff->id,
                 resolutionNote: (string) $validated['resolution_note'],
             );
         } catch (InvalidManagerPinException $e) {

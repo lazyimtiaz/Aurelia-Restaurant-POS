@@ -10,7 +10,7 @@ use App\Modules\Floor\Actions\UpdateTableStateAction;
 use App\Modules\Floor\Enums\TableState;
 use App\Modules\Floor\Exceptions\TableNotAvailableException;
 use App\Modules\Floor\Queries\GetBranchFloorQuery;
-use App\Modules\Identity\Queries\GetEvaluatorContextQuery;
+use App\Modules\Identity\Services\CurrentStaffContext;
 use App\Modules\Orders\Queries\GetActiveBranchOrdersQuery;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
@@ -24,16 +24,15 @@ final class FloorController extends Controller
 {
     public function index(
         Request $request,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         GetBranchFloorQuery $getBranchFloor,
         GetActiveBranchOrdersQuery $getActiveOrders,
     ): Response {
-        $context = $getEvaluatorContext->execute($request);
-        $branchId = (int) $context['activeBranch']['id'];
+        $branch = $staffContext->requireActiveBranch($request);
 
-        return Inertia::render('Floor/FloorWorkspace', [
-            'zones' => $getBranchFloor->execute($branchId),
-            'activeOrders' => $getActiveOrders->execute($branchId),
+        return Inertia::render('Tables/TablesPage', [
+            'zones' => $getBranchFloor->execute($branch->id),
+            'activeOrders' => $getActiveOrders->execute($branch->id),
         ]);
     }
 
@@ -63,17 +62,15 @@ final class FloorController extends Controller
     public function requestService(
         Request $request,
         int $tableId,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         RequestTableServiceAction $requestService,
     ): RedirectResponse {
         $validated = $request->validate([
             'request_type' => ['required', 'string', 'max:64'],
         ]);
 
-        $context = $getEvaluatorContext->execute($request);
-        $actorId = (int) $context['activeUser']['id'];
-
-        $requestService->execute($tableId, $validated['request_type'], $actorId);
+        $staff = $staffContext->requireStaff($request);
+        $requestService->execute($tableId, $validated['request_type'], $staff->id);
 
         return back()->with('success', 'Service alert broadcast to floor staff.');
     }

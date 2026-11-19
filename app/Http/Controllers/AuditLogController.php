@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Modules\Audit\Queries\GetBranchAuditLogsQuery;
-use App\Modules\Identity\Enums\StaffRole;
-use App\Modules\Identity\Queries\GetEvaluatorContextQuery;
+use App\Modules\Identity\Services\CurrentStaffContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,21 +13,19 @@ final class AuditLogController extends Controller
 {
     public function index(
         Request $request,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         GetBranchAuditLogsQuery $getAuditLogs,
     ): JsonResponse {
-        $context = $getEvaluatorContext->execute($request);
-        $activeRole = StaffRole::from((string) $context['activeUser']['role']);
-
-        abort_unless($activeRole->canAccessExecutiveWorkspace(), 403);
+        $staff = $staffContext->requireStaff($request);
+        $activeBranch = $staffContext->requireActiveBranch($request);
 
         $branchParam = $request->query('branch_id');
-        if ($branchParam === 'all') {
+        if ($branchParam === 'all' && $staff->role->canSwitchActiveBranch()) {
             $branchId = null;
-        } elseif (is_numeric($branchParam) && (int) $branchParam > 0) {
+        } elseif (is_numeric($branchParam) && (int) $branchParam > 0 && $staff->role->canSwitchActiveBranch()) {
             $branchId = (int) $branchParam;
         } else {
-            $branchId = (int) $context['activeBranch']['id'];
+            $branchId = $activeBranch->id;
         }
 
         $result = $getAuditLogs->execute(

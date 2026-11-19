@@ -7,7 +7,7 @@ namespace App\Http\Controllers;
 use App\Modules\Floor\Exceptions\TableNotAvailableException;
 use App\Modules\Floor\Queries\GetBranchFloorQuery;
 use App\Modules\Identity\Exceptions\InvalidManagerPinException;
-use App\Modules\Identity\Queries\GetEvaluatorContextQuery;
+use App\Modules\Identity\Services\CurrentStaffContext;
 use App\Modules\Kitchen\Enums\VoidReason;
 use App\Modules\Menu\Queries\GetBranchCatalogQuery;
 use App\Modules\Orders\Actions\AddDraftOrderItemAction;
@@ -20,6 +20,7 @@ use App\Modules\Orders\DTOs\OrderItemInputData;
 use App\Modules\Orders\Enums\ServiceType;
 use App\Modules\Orders\Exceptions\NoDraftItemsToFireException;
 use App\Modules\Orders\Queries\GetActiveBranchOrdersQuery;
+use App\Modules\Shifts\Queries\FindActiveOpenShiftQuery;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,26 +33,25 @@ final class PosController extends Controller
 {
     public function index(
         Request $request,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         GetBranchCatalogQuery $getCatalog,
         GetBranchFloorQuery $getFloor,
         GetActiveBranchOrdersQuery $getActiveOrders,
     ): Response {
-        $context = $getEvaluatorContext->execute($request);
-        $branchId = (int) $context['activeBranch']['id'];
+        $branch = $staffContext->requireActiveBranch($request);
 
-        return Inertia::render('Pos/PosWorkspace', [
-            'catalog' => $getCatalog->execute($branchId)->values()->all(),
-            'zones' => $getFloor->execute($branchId),
-            'activeOrders' => $getActiveOrders->execute($branchId),
-            'recentPaidOrders' => $getActiveOrders->recentPaid($branchId),
+        return Inertia::render('Pos/PosPage', [
+            'catalog' => $getCatalog->execute($branch->id)->values()->all(),
+            'zones' => $getFloor->execute($branch->id),
+            'activeOrders' => $getActiveOrders->execute($branch->id),
             'initialOrderId' => $request->integer('order_id') ?: null,
         ]);
     }
 
     public function storeOrder(
         Request $request,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
+        FindActiveOpenShiftQuery $findActiveShift,
         OpenOrderTabAction $openOrderTab,
     ): RedirectResponse {
         $validated = $request->validate([
@@ -61,16 +61,15 @@ final class PosController extends Controller
             'customer_name' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $context = $getEvaluatorContext->execute($request);
-        $branchId = (int) $context['activeBranch']['id'];
-        $shiftId = (int) ($context['activeShift']['id'] ?? 0);
-        $actorId = (int) $context['activeUser']['id'];
+        $staff = $staffContext->requireStaff($request);
+        $branch = $staffContext->requireActiveBranch($request);
+        $shift = $findActiveShift->execute($branch->id, $staff->id);
 
         try {
             $order = $openOrderTab->execute(
-                branchId: $branchId,
-                shiftId: $shiftId,
-                serverId: $actorId,
+                branchId: $branch->id,
+                shiftId: $shift?->id ?? 0,
+                serverId: $staff->id,
                 serviceType: ServiceType::from($validated['service_type']),
                 tableId: isset($validated['table_id']) ? (int) $validated['table_id'] : null,
                 guestCount: (int) ($validated['guest_count'] ?? 1),
@@ -128,14 +127,13 @@ final class PosController extends Controller
     public function fireRound(
         Request $request,
         int $orderId,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         FireOrderRoundAction $fireRound,
     ): RedirectResponse {
-        $context = $getEvaluatorContext->execute($request);
-        $actorId = (int) $context['activeUser']['id'];
+        $staff = $staffContext->requireStaff($request);
 
         try {
-            $fireRound->execute($orderId, $actorId);
+            $fireRound->execute($orderId, $staff->id);
         } catch (NoDraftItemsToFireException|DomainException $e) {
             throw ValidationException::withMessages(['fire' => $e->getMessage()]);
         }
@@ -146,7 +144,7 @@ final class PosController extends Controller
     public function applyDiscount(
         Request $request,
         int $orderId,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         ApplyOrderDiscountAction $applyDiscount,
     ): RedirectResponse {
         $validated = $request->validate([
@@ -154,14 +152,13 @@ final class PosController extends Controller
             'manager_pin' => ['nullable', 'string', 'max:12'],
         ]);
 
-        $context = $getEvaluatorContext->execute($request);
-        $actorId = (int) $context['activeUser']['id'];
+        $staff = $staffContext->requireStaff($request);
 
         try {
             $applyDiscount->execute(
                 orderId: $orderId,
                 discountBps: (int) $validated['discount_bps'],
-                actorUserId: $actorId,
+                actorUserId: $staff->id,
                 managerPin: $validated['manager_pin'] ?? null,
             );
         } catch (InvalidManagerPinException $e) {
@@ -174,7 +171,7 @@ final class PosController extends Controller
     public function voidItem(
         Request $request,
         int $itemId,
-        GetEvaluatorContextQuery $getEvaluatorContext,
+        CurrentStaffContext $staffContext,
         VoidOrderItemAction $voidOrderItem,
     ): RedirectResponse {
         $validated = $request->validate([
@@ -182,15 +179,14 @@ final class PosController extends Controller
             'reason' => ['required', Rule::enum(VoidReason::class)],
         ]);
 
-        $context = $getEvaluatorContext->execute($request);
-        $actorId = (int) $context['activeUser']['id'];
+        $staff = $staffContext->requireStaff($request);
 
         try {
             $voided = $voidOrderItem->execute(
                 orderItemId: $itemId,
                 managerPin: (string) $validated['manager_pin'],
                 reason: VoidReason::from($validated['reason']),
-                actorUserId: $actorId,
+                actorUserId: $staff->id,
             );
         } catch (InvalidManagerPinException $e) {
             throw ValidationException::withMessages(['manager_pin' => $e->getMessage()]);
