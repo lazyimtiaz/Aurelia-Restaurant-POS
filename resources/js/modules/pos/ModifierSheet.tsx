@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatCents } from '@/lib/money';
-import type { MenuItemData, MenuVariantData } from '@/types/evaluator';
+import type { MenuItemData, MenuVariantData } from '@/types/pos-app';
 
 interface ModifierSheetProps {
     item: MenuItemData | null;
