@@ -8,10 +8,12 @@ import type { DiningTableData, FloorZoneData } from '@/types/pos';
 interface NewOrderModalProps {
     open: boolean;
     zones: FloorZoneData[];
+    description?: string;
     onClose: () => void;
+    onCreated?: () => void;
 }
 
-export function NewOrderModal({ open, zones, onClose }: NewOrderModalProps) {
+export function NewOrderModal({ open, zones, description, onClose, onCreated }: NewOrderModalProps) {
     const [serviceType, setServiceType] = useState<'dine_in' | 'takeaway'>('dine_in');
     const [customerName, setCustomerName] = useState('');
     const [guestCount, setGuestCount] = useState(2);
@@ -43,7 +45,11 @@ export function NewOrderModal({ open, zones, onClose }: NewOrderModalProps) {
                 preserveScroll: true,
                 onSuccess: () => {
                     setCustomerName('');
-                    onClose();
+                    if (onCreated) {
+                        onCreated();
+                    } else {
+                        onClose();
+                    }
                 },
                 onFinish: () => setSubmitting(false),
             },
@@ -55,7 +61,7 @@ export function NewOrderModal({ open, zones, onClose }: NewOrderModalProps) {
             open={open}
             onClose={onClose}
             title="Create New Order"
-            description="Open a seated dining room tab or quick counter takeaway ticket."
+            description={description ?? 'Open a seated dining room tab or quick counter takeaway ticket.'}
             icon={
                 <IconBadge tone="orange" shape="squircle">
                     <Utensils className="h-4.5 w-4.5" />

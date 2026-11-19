@@ -5,7 +5,6 @@ import {
     ArrowRightLeft,
     Ban,
     CheckCircle2,
-    ChevronUp,
     Flame,
     Percent,
     Plus,
@@ -55,6 +54,7 @@ export default function PosPage({
     const [search, setSearch] = useState('');
 
     const [newOrderOpen, setNewOrderOpen] = useState(false);
+    const [pendingItem, setPendingItem] = useState<MenuItemData | null>(null);
     const [mobileCartOpen, setMobileCartOpen] = useState(false);
     const [modifierItem, setModifierItem] = useState<MenuItemData | null>(null);
     const [transferOpen, setTransferOpen] = useState(false);
@@ -82,6 +82,30 @@ export default function PosPage({
     const activeOrder = activeOrders.find((o) => o.id === selectedOrderId) ?? activeOrders[0] ?? null;
     const canModifyItems =
         activeOrder !== null && (activeOrder.state === 'draft' || activeOrder.state === 'open');
+
+    useEffect(() => {
+        if (!pendingItem || !activeOrder || !canModifyItems) return;
+        const itemToProcess = pendingItem;
+        setPendingItem(null);
+
+        if (itemToProcess.modifier_groups.length > 0 || itemToProcess.variants.length > 1) {
+            setModifierItem(itemToProcess);
+            return;
+        }
+        const variant = itemToProcess.variants.find((v) => v.is_available);
+        if (!variant) return;
+        router.post(
+            `/pos/orders/${activeOrder.id}/items`,
+            {
+                menu_item_variant_id: variant.id,
+                quantity: 1,
+                modifier_option_ids: [],
+                seat_number: 1,
+                special_instructions: '',
+            },
+            { preserveScroll: true },
+        );
+    }, [activeOrder?.id, canModifyItems, pendingItem]);
 
     const categoryTabs = useMemo(
         () => [
@@ -117,7 +141,12 @@ export default function PosPage({
     }, [catalog, activeCategorySlug, search]);
 
     const handleQuickAddOrConfigure = (item: MenuItemData) => {
-        if (!activeOrder || !canModifyItems) return;
+        if (!activeOrder) {
+            setPendingItem(item);
+            setNewOrderOpen(true);
+            return;
+        }
+        if (!canModifyItems) return;
         if (item.modifier_groups.length > 0 || item.variants.length > 1) {
             setModifierItem(item);
             return;
@@ -539,7 +568,7 @@ export default function PosPage({
         >
             <Head title="POS Register — Aurelia POS" />
 
-            <div className="space-y-5 pb-24 lg:pb-0">
+            <div className="space-y-5 pb-20 lg:pb-0">
                 {/* Active Order Switcher Strip */}
                 <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-bistro-card sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -667,7 +696,7 @@ export default function PosPage({
                                             <Button
                                                 type="button"
                                                 size="sm"
-                                                disabled={!activeOrder || !canModifyItems || isSoldOut}
+                                                disabled={isSoldOut || (activeOrder !== null && !canModifyItems)}
                                                 onClick={() => handleQuickAddOrConfigure(item)}
                                             >
                                                 <Plus className="h-3.5 w-3.5" />
@@ -693,52 +722,37 @@ export default function PosPage({
                 </div>
             </div>
 
-            {/* Mobile & Portrait Tablet Floating Bottom Order Bar (<lg) */}
-            <div className="fixed inset-x-4 bottom-4 z-30 lg:hidden">
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-[#181512] px-4 py-3 text-white shadow-bistro-floating">
-                    {activeOrder ? (
-                        <>
-                            <div className="min-w-0">
-                                <div className="flex items-center gap-2 text-xs text-stone-300">
-                                    <span className="font-mono font-semibold text-amber-400">
-                                        {activeOrder.order_number}
-                                    </span>
-                                    <span>·</span>
-                                    <span>{totalTicketItems} items</span>
-                                </div>
-                                <div className="ds-num-md text-white">
-                                    {formatCents(activeOrder.total_cents)}
-                                </div>
-                            </div>
-                            <Button
-                                type="button"
-                                variant="amber"
-                                size="default"
-                                onClick={() => setMobileCartOpen(true)}
-                                className="shrink-0"
-                            >
-                                <ChevronUp className="h-4 w-4" />
-                                <span>View Ticket</span>
-                            </Button>
-                        </>
-                    ) : (
-                        <>
-                            <div className="min-w-0 text-xs text-stone-300">
-                                No open tab selected for this station.
-                            </div>
-                            <Button
-                                type="button"
-                                variant="amber"
-                                size="sm"
-                                onClick={() => setNewOrderOpen(true)}
-                                className="shrink-0"
-                            >
-                                <Plus className="h-3.5 w-3.5" />
-                                <span>New Order</span>
-                            </Button>
-                        </>
-                    )}
-                </div>
+            {/* Mobile & Portrait Tablet Compact Floating Action Button (<lg) */}
+            <div className="fixed right-4 bottom-5 z-30 lg:hidden">
+                {activeOrder ? (
+                    <button
+                        type="button"
+                        onClick={() => setMobileCartOpen(true)}
+                        className="relative inline-flex items-center gap-2 rounded-full bg-[#181512] px-4 py-3 text-sm font-semibold text-white shadow-bistro-floating ring-1 ring-white/10 transition hover:bg-stone-800 active:scale-[0.97] cursor-pointer"
+                    >
+                        <Receipt className="h-4 w-4 text-amber-400" />
+                        <span>View Ticket</span>
+                        {(totalTicketItems > 0 || activeOrders.length > 0) && (
+                            <span className="absolute -top-2 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 font-mono text-[11px] font-bold text-white ring-2 ring-background shadow-sm tabular-nums">
+                                {totalTicketItems > 0 ? totalTicketItems : activeOrders.length}
+                            </span>
+                        )}
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => setNewOrderOpen(true)}
+                        className="relative inline-flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-bistro-floating transition hover:bg-[#c2410c] active:scale-[0.97] cursor-pointer"
+                    >
+                        <Plus className="h-4 w-4" />
+                        <span>New Order</span>
+                        {activeOrders.length > 0 && (
+                            <span className="absolute -top-2 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#181512] px-1.5 font-mono text-[11px] font-bold text-amber-400 ring-2 ring-background shadow-sm tabular-nums">
+                                {activeOrders.length}
+                            </span>
+                        )}
+                    </button>
+                )}
             </div>
 
             {/* Mobile & Tablet Order Cart Drawer */}
@@ -756,7 +770,20 @@ export default function PosPage({
                 <div className="p-5 pb-8">{renderOrderDetail()}</div>
             </MotionDrawer>
 
-            <NewOrderModal open={newOrderOpen} zones={zones} onClose={() => setNewOrderOpen(false)} />
+            <NewOrderModal
+                open={newOrderOpen}
+                zones={zones}
+                description={
+                    pendingItem
+                        ? `Start a dine-in or takeaway tab to add ${pendingItem.name}.`
+                        : undefined
+                }
+                onClose={() => {
+                    setNewOrderOpen(false);
+                    setPendingItem(null);
+                }}
+                onCreated={() => setNewOrderOpen(false)}
+            />
             <ModifierSheet item={modifierItem} onClose={() => setModifierItem(null)} onAdd={handleAddConfigured} />
 
             {activeOrder && (

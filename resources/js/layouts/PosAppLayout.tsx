@@ -1,11 +1,13 @@
-import { type PropsWithChildren, useState } from 'react';
+import { type PropsWithChildren, useEffect, useRef, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
     BarChart3,
     Boxes,
     Building2,
+    Check,
     ChefHat,
+    ChevronDown,
     ClipboardList,
     Grid2X2,
     LayoutDashboard,
@@ -51,6 +53,26 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
     const { auth } = page.props;
     const currentPath = page.url.split('?')[0];
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+    const branchMenuRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        if (!branchMenuOpen) return;
+        const onMouseDown = (event: MouseEvent) => {
+            if (branchMenuRef.current && !branchMenuRef.current.contains(event.target as Node)) {
+                setBranchMenuOpen(false);
+            }
+        };
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setBranchMenuOpen(false);
+        };
+        document.addEventListener('mousedown', onMouseDown);
+        window.addEventListener('keydown', onKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', onMouseDown);
+            window.removeEventListener('keydown', onKeyDown);
+        };
+    }, [branchMenuOpen]);
 
     const staff = auth?.staff;
     const activeBranch = auth?.activeBranch;
@@ -301,32 +323,88 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
 
                         <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
                             {staff?.can_switch_branch && (auth?.branches.length ?? 0) > 0 ? (
-                                <label className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-border bg-[var(--surface-inset)] px-3 py-1.5 text-xs font-medium">
-                                    <Building2 className="h-3.5 w-3.5 shrink-0 text-primary" />
-                                    <select
+                                <div ref={branchMenuRef} className="relative hidden sm:inline-flex">
+                                    <button
+                                        type="button"
                                         aria-label="Active Branch"
-                                        value={activeBranch?.id ?? ''}
-                                        onChange={(e) => handleBranchChange(Number(e.target.value))}
-                                        className="max-w-[240px] pr-1 bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+                                        aria-haspopup="listbox"
+                                        aria-expanded={branchMenuOpen}
+                                        onClick={() => setBranchMenuOpen((prev) => !prev)}
+                                        className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-[var(--surface-inset)] px-3 text-xs font-semibold text-foreground shadow-[0_1px_2px_rgba(24,21,18,0.03)] transition hover:border-[#dcd4c7] hover:bg-card focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
                                     >
-                                        {auth?.branches.map((branch) => (
-                                            <option key={branch.id} value={branch.id}>
-                                                {branch.code} — {branch.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
+                                        <Building2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+                                        <span className="truncate max-w-[190px]">
+                                            {activeBranch
+                                                ? `${activeBranch.code} — ${activeBranch.name}`
+                                                : 'Select Branch'}
+                                        </span>
+                                        <ChevronDown
+                                            className={cn(
+                                                'h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-150',
+                                                branchMenuOpen && 'rotate-180',
+                                            )}
+                                        />
+                                    </button>
+
+                                    <AnimatePresence>
+                                        {branchMenuOpen && (
+                                            <motion.div
+                                                role="listbox"
+                                                aria-label="Available Branches"
+                                                initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: 4, scale: 0.97 }}
+                                                transition={{ duration: 0.14 }}
+                                                className="absolute top-full right-0 z-40 mt-2 w-64 rounded-2xl border border-border bg-card p-1.5 shadow-bistro-elevated"
+                                            >
+                                                {auth?.branches.map((branch) => {
+                                                    const isSelected = branch.id === activeBranch?.id;
+                                                    return (
+                                                        <button
+                                                            key={branch.id}
+                                                            type="button"
+                                                            role="option"
+                                                            aria-selected={isSelected}
+                                                            onClick={() => {
+                                                                setBranchMenuOpen(false);
+                                                                if (!isSelected) {
+                                                                    handleBranchChange(branch.id);
+                                                                }
+                                                            }}
+                                                            className={cn(
+                                                                'flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs font-medium transition cursor-pointer',
+                                                                isSelected
+                                                                    ? 'bg-accent text-primary font-semibold'
+                                                                    : 'text-foreground hover:bg-[var(--surface-inset)]',
+                                                            )}
+                                                        >
+                                                            <div className="flex min-w-0 items-center gap-2">
+                                                                <span className="shrink-0 rounded-md border border-border/80 bg-card px-1.5 py-0.5 font-mono text-[10px] font-bold text-foreground">
+                                                                    {branch.code}
+                                                                </span>
+                                                                <span className="truncate">{branch.name}</span>
+                                                            </div>
+                                                            {isSelected && (
+                                                                <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
                             ) : (
                                 activeBranch && (
-                                    <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border bg-[var(--surface-inset)] px-3 py-1 text-xs font-semibold text-foreground">
-                                        <Building2 className="h-3.5 w-3.5 text-primary" />
+                                    <span className="hidden sm:inline-flex h-9 items-center gap-1.5 rounded-full border border-border bg-[var(--surface-inset)] px-3 text-xs font-semibold text-foreground">
+                                        <Building2 className="h-3.5 w-3.5 shrink-0 text-primary" />
                                         <span>{activeBranch.code}</span>
                                     </span>
                                 )
                             )}
 
                             {staff && allowed.has('shifts') && (
-                                <Link href="/shifts" className="hidden sm:inline-flex">
+                                <Link href="/shifts" className="hidden sm:inline-flex items-center">
                                     {auth?.activeShift ? (
                                         <StatusPill
                                             tone="success"
@@ -334,13 +412,14 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
                                             pulse
                                             icon={<Wallet className="h-3.5 w-3.5" />}
                                             label={`Drawer ${formatCents(auth.activeShift.expected_cash_cents)}`}
-                                            className="font-mono"
+                                            className="h-9 font-mono"
                                         />
                                     ) : (
                                         <StatusPill
                                             tone="warning"
                                             size="md"
                                             label="Shift Closed"
+                                            className="h-9"
                                         />
                                     )}
                                 </Link>
