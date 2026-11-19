@@ -27,41 +27,41 @@
 }
 
 :root {
-    --background: oklch(0.985 0.002 90);
-    --foreground: oklch(0.16 0.015 260);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.16 0.015 260);
-    --primary: oklch(0.55 0.16 55);
-    --primary-foreground: oklch(0.99 0 0);
-    --secondary: oklch(0.95 0.008 90);
-    --secondary-foreground: oklch(0.24 0.02 260);
-    --muted: oklch(0.95 0.006 90);
-    --muted-foreground: oklch(0.5 0.015 260);
-    --accent: oklch(0.94 0.02 75);
-    --accent-foreground: oklch(0.24 0.02 260);
-    --destructive: oklch(0.57 0.22 25);
-    --destructive-foreground: oklch(0.99 0 0);
-    --border: oklch(0.9 0.008 90);
-    --input: oklch(0.9 0.008 90);
-    --ring: oklch(0.55 0.16 55);
+    --background: #faf8f5;
+    --foreground: #1c1917;
+    --card: #ffffff;
+    --card-foreground: #1c1917;
+    --primary: #ea580c;
+    --primary-foreground: #ffffff;
+    --secondary: #f5f2ec;
+    --secondary-foreground: #292524;
+    --muted: #f5f2ec;
+    --muted-foreground: #78716c;
+    --accent: #fff7ed;
+    --accent-foreground: #c2410c;
+    --destructive: #e11d48;
+    --destructive-foreground: #ffffff;
+    --border: #eae5dd;
+    --input: #e5dfd5;
+    --ring: #ea580c;
 }
 
 .dark {
-    --background: oklch(0.145 0.014 260);
-    --foreground: oklch(0.97 0.005 90);
-    --card: oklch(0.19 0.015 260);
-    --card-foreground: oklch(0.97 0.005 90);
-    --primary: oklch(0.72 0.17 65);
-    --primary-foreground: oklch(0.14 0.015 260);
-    --secondary: oklch(0.25 0.016 260);
-    --secondary-foreground: oklch(0.95 0.005 90);
-    --muted: oklch(0.24 0.015 260);
-    --muted-foreground: oklch(0.68 0.015 260);
-    --accent: oklch(0.27 0.03 65);
-    --accent-foreground: oklch(0.97 0.005 90);
-    --destructive: oklch(0.62 0.22 25);
-    --destructive-foreground: oklch(0.99 0 0);
-    --border: oklch(0.29 0.016 260);
-    --input: oklch(0.29 0.016 260);
-    --ring: oklch(0.72 0.17 65);
+    --background: #0f1115;
+    --foreground: #f8fafc;
+    --card: #181b21;
+    --card-foreground: #f8fafc;
+    --primary: #fb923c;
+    --primary-foreground: #18181b;
+    --secondary: #22262e;
+    --secondary-foreground: #f1f5f9;
+    --muted: #22262e;
+    --muted-foreground: #94a3b8;
+    --accent: #2d2016;
+    --accent-foreground: #fdba74;
+    --destructive: #f43f5e;
+    --destructive-foreground: #ffffff;
+    --border: #2b303a;
+    --input: #2b303a;
+    --ring: #fb923c;
 }

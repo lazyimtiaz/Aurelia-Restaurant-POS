@@ -8,17 +8,39 @@ export type StaffRoleValue =
     | 'kitchen_expediter'
     | 'inventory_manager';
 
-export interface ActiveUserData {
+export type NavSectionKey =
+    | 'dashboard'
+    | 'pos'
+    | 'orders'
+    | 'tables'
+    | 'kitchen'
+    | 'menu'
+    | 'inventory'
+    | 'reports'
+    | 'shifts'
+    | 'settings';
+
+export interface StaffSessionData {
     id: number;
     name: string;
     email: string;
     role: StaffRoleValue;
     role_label: string;
     branch_id: number | null;
+    assigned_station: string | null;
     can_authorize_pin: boolean;
+    can_switch_branch: boolean;
+    home_route: string;
+    allowed_sections: NavSectionKey[];
 }
 
-export interface BranchData {
+export interface BranchOptionData {
+    id: number;
+    code: string;
+    name: string;
+}
+
+export interface ActiveBranchData {
     id: number;
     code: string;
     name: string;
@@ -27,13 +49,6 @@ export interface BranchData {
     service_charge_bps: number;
     discount_pin_threshold_bps: number;
     cash_variance_tolerance_cents: number;
-    is_active?: boolean;
-}
-
-export interface RoleOptionData {
-    value: StaffRoleValue;
-    label: string;
-    can_authorize_pin: boolean;
 }
 
 export interface ActiveShiftData {
@@ -44,23 +59,18 @@ export interface ActiveShiftData {
     opened_at: string | null;
 }
 
-export interface SimulationFlagsData {
-    simulateCardDecline: boolean;
-    triggerLowStockAuto86: boolean;
-}
-
-export interface EvaluatorContextData {
-    activeUser: ActiveUserData;
-    activeBranch: BranchData;
-    branches: BranchData[];
-    roles: RoleOptionData[];
+export interface PosAuthContextData {
+    terminalBranch: BranchOptionData;
+    terminalSignedInBy: string;
+    staff: StaffSessionData | null;
+    activeBranch: ActiveBranchData;
+    branches: BranchOptionData[];
     activeShift: ActiveShiftData | null;
-    simulations: SimulationFlagsData;
 }
 
-export interface SharedPageProps {
+export interface PosSharedProps {
     [key: string]: unknown;
-    evaluator: EvaluatorContextData;
+    auth: PosAuthContextData | null;
     flash?: {
         success?: string | null;
         error?: string | null;
@@ -99,6 +109,7 @@ export interface MenuItemData {
     name: string;
     slug: string;
     description: string | null;
+    image_path: string | null;
     prep_station: 'grill' | 'cold_salad' | 'pastry' | 'bar';
     prep_station_label: string;
     allergen_tags: string[];
