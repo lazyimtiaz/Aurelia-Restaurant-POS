@@ -128,6 +128,7 @@ interface AnimatedTabsProps<T extends string = string> {
     value: T;
     onChange: (id: T) => void;
     layoutId?: string;
+    wrap?: boolean;
     className?: string;
     variant?: 'light' | 'dark';
 }
@@ -137,6 +138,7 @@ function AnimatedTabs<T extends string = string>({
     value,
     onChange,
     layoutId,
+    wrap = false,
     className,
     variant = 'light',
 }: AnimatedTabsProps<T>) {
@@ -147,7 +149,8 @@ function AnimatedTabs<T extends string = string>({
         <div
             role="tablist"
             className={cn(
-                'inline-flex max-w-full items-center gap-1 overflow-x-auto no-scrollbar rounded-xl border p-1',
+                'inline-flex max-w-full items-center gap-1 rounded-xl border p-1',
+                wrap ? 'flex-wrap' : 'overflow-x-auto no-scrollbar',
                 variant === 'dark'
                     ? 'border-slate-800 bg-[#161922]'
                     : 'border-border bg-[var(--surface-inset)]',

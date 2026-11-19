@@ -178,6 +178,7 @@ export default function TablesPage({ zones, activeOrders }: TablesPageProps) {
                 <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-bistro-card xl:flex-row xl:items-center xl:justify-between">
                     <AnimatedTabs
                         items={zoneTabs}
+                        wrap
                         value={activeZone ? String(activeZone.id) : ''}
                         onChange={setSelectedZoneId}
                         layoutId="floor-zones"

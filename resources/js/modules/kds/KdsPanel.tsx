@@ -70,6 +70,7 @@ export function KdsPanel({
                 <AnimatedTabs
                     layoutId="kds-station-tabs"
                     variant="dark"
+                    wrap
                     value={stationFilter}
                     onChange={setStationFilter}
                     items={stationTabs}

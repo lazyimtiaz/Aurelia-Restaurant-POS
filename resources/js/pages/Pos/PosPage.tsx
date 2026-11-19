@@ -541,8 +541,8 @@ export default function PosPage({
 
             <div className="space-y-5 pb-24 lg:pb-0">
                 {/* Active Order Switcher Strip */}
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-bistro-card">
-                    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto no-scrollbar">
+                <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-bistro-card sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                         {activeOrders.map((order) => {
                             const selected = activeOrder?.id === order.id;
                             return (
@@ -551,17 +551,17 @@ export default function PosPage({
                                     type="button"
                                     onClick={() => setSelectedOrderId(order.id)}
                                     className={cn(
-                                        'shrink-0 inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition cursor-pointer',
+                                        'inline-flex max-w-full items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition cursor-pointer',
                                         selected
                                             ? 'border-primary bg-accent text-primary ring-1 ring-primary/25'
                                             : 'border-border bg-[var(--surface-inset)] text-stone-700 hover:bg-secondary/70',
                                     )}
                                 >
-                                    <span className="font-mono">{order.order_number}</span>
-                                    <span className="text-muted-foreground">
+                                    <span className="font-mono whitespace-nowrap">{order.order_number}</span>
+                                    <span className="truncate text-muted-foreground">
                                         {order.table_code ? `T-${order.table_code}` : order.customer_name || 'TA'}
                                     </span>
-                                    <span className="font-mono font-bold text-foreground tabular-nums">
+                                    <span className="font-mono font-bold whitespace-nowrap text-foreground tabular-nums">
                                         {formatCents(order.total_cents)}
                                     </span>
                                 </button>
@@ -577,7 +577,7 @@ export default function PosPage({
                     <Button
                         type="button"
                         onClick={() => setNewOrderOpen(true)}
-                        className="shrink-0"
+                        className="w-full shrink-0 sm:w-auto"
                     >
                         <Plus className="h-4 w-4" />
                         <span>New Order</span>
@@ -588,24 +588,28 @@ export default function PosPage({
                 <div className="grid gap-6 lg:grid-cols-12 items-start">
                     {/* Left Menu Explorer */}
                     <div className="space-y-4 lg:col-span-7 xl:col-span-8 min-w-0">
-                        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-bistro-card xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-bistro-card">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <span className="ds-overline px-1">Menu Categories</span>
+                                <div className="relative w-full sm:w-64 shrink-0">
+                                    <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                    <input
+                                        type="search"
+                                        value={search}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                        placeholder="Search dish or SKU..."
+                                        className="h-9 w-full rounded-xl border border-input bg-[var(--surface-inset)] pr-3 pl-9 text-xs focus:border-primary focus:bg-card focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+
                             <AnimatedTabs
                                 items={categoryTabs}
                                 value={activeCategorySlug}
                                 onChange={setActiveCategorySlug}
                                 layoutId="pos-menu-categories"
+                                wrap
                             />
-
-                            <div className="relative w-full xl:w-60 shrink-0">
-                                <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                                <input
-                                    type="search"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    placeholder="Search dish or SKU..."
-                                    className="h-10 w-full rounded-xl border border-input bg-[var(--surface-inset)] pr-3 pl-9 text-xs focus:border-primary focus:bg-card focus:outline-none"
-                                />
-                            </div>
                         </div>
 
                         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">

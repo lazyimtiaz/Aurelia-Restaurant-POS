@@ -11,7 +11,7 @@ export function KitchenLayout({ children }: PropsWithChildren) {
     const canLeaveKitchen = staff ? staff.allowed_sections.some((s) => s !== 'kitchen') : false;
 
     return (
-        <div className="dark min-h-screen bg-[#0D0F14] text-slate-100">
+        <div className="dark min-h-screen overflow-x-clip bg-[#0D0F14] text-slate-100">
             <FloatingToaster variant="dark" />
 
             <header className="sticky top-0 z-30 border-b border-[#282E3A] bg-[#0D0F14]/95 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8">

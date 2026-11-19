@@ -93,6 +93,7 @@ export default function MenuPage({ catalog }: MenuPageProps) {
                 <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-bistro-card lg:flex-row lg:items-center lg:justify-between">
                     <AnimatedTabs
                         layoutId="menu-catalog-categories"
+                        wrap
                         value={activeCategory}
                         onChange={setActiveCategory}
                         items={categoryTabs}

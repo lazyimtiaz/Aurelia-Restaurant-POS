@@ -57,11 +57,12 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
     const allowed = new Set<NavSectionKey>(staff?.allowed_sections ?? []);
     const visibleNav = NAV_ITEMS.filter((item) => allowed.has(item.key));
 
-    const initials = (staff?.name ?? 'ST')
-        .split(/\s+/)
-        .slice(0, 2)
-        .map((p) => p[0]?.toUpperCase() ?? '')
-        .join('');
+    const nameParts = (staff?.name ?? 'ST').match(/[A-Za-z0-9]+/g) ?? ['ST'];
+    const initials = (
+        nameParts.length >= 2
+            ? `${nameParts[0][0] ?? 'S'}${nameParts[1][0] ?? 'T'}`
+            : nameParts[0].slice(0, 2)
+    ).toUpperCase();
 
     const formattedDate = new Intl.DateTimeFormat('en-US', {
         weekday: 'short',
@@ -121,7 +122,7 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
     );
 
     return (
-        <div className="flex min-h-screen w-full bg-background text-foreground">
+        <div className="flex min-h-screen w-full overflow-x-clip bg-background text-foreground">
             <FloatingToaster variant="light" />
 
             {/* Tablet Compact Rail (md..lg-1) */}
@@ -306,7 +307,7 @@ export function PosAppLayout({ title, subtitle, children }: PosAppLayoutProps) {
                                         aria-label="Active Branch"
                                         value={activeBranch?.id ?? ''}
                                         onChange={(e) => handleBranchChange(Number(e.target.value))}
-                                        className="max-w-[160px] truncate bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+                                        className="max-w-[240px] pr-1 bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
                                     >
                                         {auth?.branches.map((branch) => (
                                             <option key={branch.id} value={branch.id}>

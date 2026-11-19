@@ -117,6 +117,7 @@ export default function OrdersPage({ orders }: OrdersPageProps) {
                 <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-bistro-card lg:flex-row lg:items-center lg:justify-between">
                     <AnimatedTabs
                         layoutId="orders-filter-tabs"
+                        wrap
                         value={activeTab}
                         onChange={setActiveTab}
                         items={[

@@ -188,9 +188,13 @@ final class CurrentStaffContext
             ->orderBy('name')
             ->get()
             ->map(static function (User $user): array {
-                $parts = preg_split('/\s+/', trim($user->name)) ?: [];
+                $parts = preg_split('/[^a-zA-Z0-9]+/', trim($user->name), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                $first = $parts[0] ?? 'ST';
+                $second = $parts[1] ?? null;
                 $initials = strtoupper(
-                    substr($parts[0] ?? 'S', 0, 1).substr($parts[1] ?? ($parts[0] ?? 'T'), 0, 1),
+                    $second !== null
+                        ? substr($first, 0, 1).substr($second, 0, 1)
+                        : substr($first, 0, 2),
                 );
 
                 return [

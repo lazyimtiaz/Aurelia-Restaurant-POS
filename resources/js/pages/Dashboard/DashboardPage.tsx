@@ -58,23 +58,64 @@ interface DashboardPageProps {
 
 const CATEGORY_COLORS = ['#EA580C', '#16A34A', '#F59E0B', '#0284C7', '#8B5CF6'];
 
-function buildSmoothCurvePath(points: { x: number; y: number }[]): string {
-    if (points.length === 0) return '';
-    if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+function buildSmoothCurvePath(
+    points: { x: number; y: number }[],
+    minY: number,
+    maxY: number,
+): string {
+    const n = points.length;
+    if (n === 0) return '';
+    if (n === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
 
+    // Fritsch-Carlson monotone cubic interpolation prevents overshoot below zero baseline
+    const dx: number[] = [];
+    const dy: number[] = [];
+    const slopes: number[] = [];
+    for (let i = 0; i < n - 1; i++) {
+        const dxi = points[i + 1].x - points[i].x || 1;
+        const dyi = points[i + 1].y - points[i].y;
+        dx.push(dxi);
+        dy.push(dyi);
+        slopes.push(dyi / dxi);
+    }
+
+    const tangents: number[] = new Array(n).fill(0);
+    tangents[0] = slopes[0];
+    tangents[n - 1] = slopes[n - 2];
+
+    for (let i = 1; i < n - 1; i++) {
+        if (slopes[i - 1] * slopes[i] <= 0) {
+            tangents[i] = 0;
+        } else {
+            tangents[i] = (slopes[i - 1] + slopes[i]) / 2;
+        }
+    }
+
+    for (let i = 0; i < n - 1; i++) {
+        if (Math.abs(slopes[i]) < 1e-6) {
+            tangents[i] = 0;
+            tangents[i + 1] = 0;
+        } else {
+            const a = tangents[i] / slopes[i];
+            const b = tangents[i + 1] / slopes[i];
+            const s = Math.hypot(a, b);
+            if (s > 3) {
+                const factor = 3 / s;
+                tangents[i] = factor * a * slopes[i];
+                tangents[i + 1] = factor * b * slopes[i];
+            }
+        }
+    }
+
+    const clampY = (y: number) => Math.min(maxY, Math.max(minY, y));
     let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
-    for (let i = 0; i < points.length - 1; i++) {
-        const p0 = points[Math.max(0, i - 1)];
-        const p1 = points[i];
-        const p2 = points[i + 1];
-        const p3 = points[Math.min(points.length - 1, i + 2)];
-
-        const cp1x = p1.x + (p2.x - p0.x) / 6;
-        const cp1y = p1.y + (p2.y - p0.y) / 6;
-        const cp2x = p2.x - (p3.x - p1.x) / 6;
-        const cp2y = p2.y - (p3.y - p1.y) / 6;
-
-        d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+    for (let i = 0; i < n - 1; i++) {
+        const step = dx[i] / 3;
+        const cp1x = points[i].x + step;
+        const cp1y = clampY(points[i].y + tangents[i] * step);
+        const cp2x = points[i + 1].x - step;
+        const cp2y = clampY(points[i + 1].y - tangents[i + 1] * step);
+        d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${points[i + 1].x.toFixed(1)} ${points[i + 1].y.toFixed(1)}`;
     }
     return d;
 }
@@ -133,7 +174,10 @@ export default function DashboardPage({ overview }: DashboardPageProps) {
         [chartPoints, maxHourlyRev],
     );
 
-    const smoothLine = useMemo(() => buildSmoothCurvePath(coords), [coords]);
+    const smoothLine = useMemo(
+        () => buildSmoothCurvePath(coords, topPad, svgH - bottomPad),
+        [coords],
+    );
     const smoothArea =
         coords.length > 0
             ? `${smoothLine} L ${coords[coords.length - 1].x.toFixed(1)} ${svgH - bottomPad} L ${coords[0].x.toFixed(1)} ${svgH - bottomPad} Z`
