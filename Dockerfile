@@ -49,9 +49,14 @@ ENV APP_NAME="Aurelia POS" \
     BROADCAST_CONNECTION=log \
     BCRYPT_ROUNDS=10 \
     AUTO_SEED_DEMO=true \
+    XDG_CONFIG_HOME=/tmp/caddy/config \
+    XDG_DATA_HOME=/tmp/caddy/data \
     PORT=8080
 
-RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
+RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+    && apk add --no-cache --virtual .cap-tools libcap \
+    && setcap -r /usr/local/bin/frankenphp \
+    && apk del .cap-tools
 COPY docker/php-production.ini /usr/local/etc/php/conf.d/99-aurelia.ini
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh

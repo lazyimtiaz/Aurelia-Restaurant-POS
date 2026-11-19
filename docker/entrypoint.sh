@@ -6,7 +6,9 @@ mkdir -p \
     storage/framework/sessions \
     storage/framework/views \
     storage/logs \
-    bootstrap/cache
+    bootstrap/cache \
+    /tmp/caddy/config \
+    /tmp/caddy/data
 
 if [ -z "${APP_KEY:-}" ]; then
     APP_KEY="$(php artisan key:generate --show)"
