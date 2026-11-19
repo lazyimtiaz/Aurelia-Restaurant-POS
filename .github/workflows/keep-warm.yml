@@ -1,0 +1,14 @@
+name: Keep Cloud Run Warm (Optional Backup)
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    if: ${{ vars.KEEP_WARM_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: curl --fail --silent --show-error --max-time 25 "${{ vars.KEEP_WARM_URL }}"

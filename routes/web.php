@@ -18,8 +18,6 @@ use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShiftReconciliationController;
 use App\Http\Middleware\RequireOpenShiftMiddleware;
-use App\Modules\Identity\Services\CurrentStaffContext;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/login', [TerminalAuthController::class, 'show'])->name('login');
@@ -32,9 +30,7 @@ Route::middleware('terminal')->group(function (): void {
 });
 
 Route::middleware(['terminal', 'staff'])->group(function (): void {
-    Route::get('/', function (Request $request, CurrentStaffContext $staffContext) {
-        return redirect($staffContext->requireStaff($request)->role->homeRoute());
-    })->name('home');
+    Route::get('/', [StaffLockController::class, 'home'])->name('home');
 
     Route::post('/lock', [StaffLockController::class, 'lock'])->name('lock');
     Route::post('/branch/switch', [BranchContextController::class, 'switch'])->name('branch.switch');

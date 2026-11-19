@@ -66,6 +66,13 @@ final class StaffLockController extends Controller
         return redirect($staff->role->homeRoute());
     }
 
+    public function home(
+        Request $request,
+        CurrentStaffContext $staffContext,
+    ): RedirectResponse {
+        return redirect($staffContext->requireStaff($request)->role->homeRoute());
+    }
+
     public function lock(
         Request $request,
         CurrentStaffContext $staffContext,

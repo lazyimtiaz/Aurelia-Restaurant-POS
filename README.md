@@ -347,7 +347,7 @@ php artisan serve
 ### 3. Running Automated Tests, Typechecks & CI
 
 ```bash
-# Run all Pest Feature, Unit & Architecture tests (67 tests / 601 assertions)
+# Run all Pest Feature, Unit & Architecture tests (70 tests / 610 assertions)
 php vendor/bin/pest
 
 # Strict TypeScript verification
@@ -358,3 +358,13 @@ npm run build
 ```
 
 GitHub Actions (`.github/workflows/ci.yml`) automatically runs the full Pest suite against **both SQLite (`:memory:`) and MySQL `8.4`** plus `npm run types` and `npm run build` on pushes to `main` and `feat/**`.
+
+---
+
+## 13. Cloud Run Deployment (Free Tier & Custom Domain)
+
+To host a live preview on **Google Cloud Run Always Free Tier (`us-central1`)** with an automatic **10-minute keep-warm Cloud Scheduler cron** (`GET /up`), strict zero-hidden-charge guardrails (Artifact Registry `keepCount: 1`, 1-day regional GCS build bucket lifecycle, `min-instances=0`, `max-instances=1`), and Cloudflare DNS (`aurelio-pos.imtiazuddin.tech` -> `ghs.googlehosted.com`), follow [docs/DEPLOYMENT_CLOUD_RUN.md](docs/DEPLOYMENT_CLOUD_RUN.md) and run:
+
+```bash
+bash deploy/cloud-run/deploy.sh YOUR_GCP_PROJECT_ID
+```
