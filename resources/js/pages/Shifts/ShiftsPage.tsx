@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import { LockKeyhole, ShieldAlert, Wallet } from 'lucide-react';
-import { PosAppLayout } from '@/layouts/PosAppLayout';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatCard, StatusPill } from '@/design-system';
+import { PosAppLayout } from '@/layouts/PosAppLayout';
 import { formatCents } from '@/lib/money';
 import type { ShiftSummaryRow } from '@/types/billing';
 import type { PosSharedProps } from '@/types/pos-app';
@@ -40,9 +40,7 @@ export default function ShiftsPage({ shifts }: ShiftsPageProps) {
 
     const handleCloseShift = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!activeShift) {
-            return;
-        }
+        if (!activeShift) return;
         setErrorMessage(null);
         const cents = Math.round(Number.parseFloat(countedDollars) * 100);
         if (!Number.isFinite(cents) || cents < 0) {
@@ -76,30 +74,61 @@ export default function ShiftsPage({ shifts }: ShiftsPageProps) {
                 onSuccess: () => {
                     setPinInput((prev) => ({ ...prev, [shiftId]: '' }));
                 },
-                onError: (errors) => setErrorMessage(errors.manager_pin || errors.shift || 'Approval failed.'),
+                onError: (errors) =>
+                    setErrorMessage(errors.manager_pin || errors.shift || 'Approval failed.'),
             },
         );
     };
 
+    const varianceFlaggedCount = shifts.filter((s) => s.state === 'variance_flagged').length;
+
     return (
         <PosAppLayout
             title="Cash Drawer & Shifts"
-            subtitle="Open a register float, submit blind cash counts at close, and review variances."
+            subtitle="Open a register float, submit blind cash counts at close, and review drawer variances."
         >
             <Head title="Shifts & Cash Drawer — Aurelia POS" />
 
             <div className="space-y-6">
                 {errorMessage && (
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-700">
+                    <div className="rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-700">
                         {errorMessage}
                     </div>
                 )}
 
-                <Card className="rounded-2xl">
-                    <CardHeader>
+                {activeShift && (
+                    <div className="grid gap-4 sm:grid-cols-3">
+                        <StatCard
+                            label="Opening Float"
+                            value={formatCents(activeShift.opening_cash_cents)}
+                            icon={<Wallet className="h-4.5 w-4.5" />}
+                            tone="slate"
+                            subtitle={activeShift.opened_at ?? 'Current shift'}
+                        />
+                        <StatCard
+                            label="Expected Drawer Cash"
+                            value={formatCents(activeShift.expected_cash_cents)}
+                            icon={<Wallet className="h-4.5 w-4.5" />}
+                            tone="emerald"
+                            subtitle="Float + captured cash sales"
+                        />
+                        <StatCard
+                            label="Variance Flags"
+                            value={varianceFlaggedCount}
+                            icon={<ShieldAlert className="h-4.5 w-4.5" />}
+                            tone={varianceFlaggedCount > 0 ? 'rose' : 'emerald'}
+                            subtitle="Pending Manager PIN review"
+                        />
+                    </div>
+                )}
+
+                <Card>
+                    <CardHeader className="border-b border-border/60 bg-[var(--surface-inset)]/60">
                         <CardTitle className="flex items-center gap-2">
-                            <Wallet className="h-5 w-5 text-primary" />
-                            {activeShift ? 'Active Register Drawer' : 'Open New Cash Drawer Shift'}
+                            <Wallet className="h-4.5 w-4.5 text-primary" />
+                            <span>
+                                {activeShift ? 'Active Register Drawer' : 'Open New Cash Drawer Shift'}
+                            </span>
                         </CardTitle>
                         <CardDescription>
                             {activeShift
@@ -108,29 +137,33 @@ export default function ShiftsPage({ shifts }: ShiftsPageProps) {
                         </CardDescription>
                     </CardHeader>
 
-                    <CardContent>
+                    <CardContent className="p-5 sm:p-6">
                         {!activeShift ? (
                             <form onSubmit={handleOpenShift} className="flex flex-wrap items-end gap-3">
-                                <label className="space-y-1 text-xs">
-                                    <span className="font-semibold text-stone-700">Opening Float ($)</span>
+                                <label className="space-y-1.5 text-xs">
+                                    <span className="ds-label block">Opening Float ($)</span>
                                     <input
                                         type="number"
                                         step="0.01"
                                         min="0"
                                         value={openingDollars}
                                         onChange={(e) => setOpeningDollars(e.target.value)}
-                                        className="block w-44 rounded-xl border border-input bg-background px-3 py-2 font-mono text-sm"
+                                        className="h-11 block w-48 rounded-xl border border-input bg-[var(--surface-inset)] px-3.5 font-mono text-sm focus:border-primary focus:bg-card focus:outline-none"
                                     />
                                 </label>
-                                <Button type="submit" className="rounded-xl">
+                                <Button type="submit" size="lg">
                                     Open Shift
                                 </Button>
                             </form>
                         ) : (
-                            <form onSubmit={handleCloseShift} className="grid gap-4 md:grid-cols-3 md:items-end">
-                                <label className="space-y-1 text-xs">
-                                    <span className="font-semibold text-stone-700">
-                                        Blind Counted Cash ($) — Expected {formatCents(activeShift.expected_cash_cents)}
+                            <form
+                                onSubmit={handleCloseShift}
+                                className="grid gap-4 md:grid-cols-3 md:items-end"
+                            >
+                                <label className="space-y-1.5 text-xs">
+                                    <span className="ds-label block">
+                                        Blind Counted Cash ($) — Expected{' '}
+                                        {formatCents(activeShift.expected_cash_cents)}
                                     </span>
                                     <input
                                         type="number"
@@ -140,62 +173,69 @@ export default function ShiftsPage({ shifts }: ShiftsPageProps) {
                                         value={countedDollars}
                                         onChange={(e) => setCountedDollars(e.target.value)}
                                         placeholder="0.00"
-                                        className="w-full rounded-xl border border-input bg-background px-3 py-2 font-mono text-sm"
+                                        className="h-11 w-full rounded-xl border border-input bg-[var(--surface-inset)] px-3.5 font-mono text-sm focus:border-primary focus:bg-card focus:outline-none"
                                     />
                                 </label>
 
-                                <label className="space-y-1 text-xs">
-                                    <span className="font-semibold text-stone-700">Closing Notes (Optional)</span>
+                                <label className="space-y-1.5 text-xs">
+                                    <span className="ds-label block">Closing Notes (Optional)</span>
                                     <input
                                         type="text"
                                         value={notes}
                                         onChange={(e) => setNotes(e.target.value)}
                                         placeholder="End of evening count"
-                                        className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                                        className="h-11 w-full rounded-xl border border-input bg-[var(--surface-inset)] px-3.5 text-sm focus:border-primary focus:bg-card focus:outline-none"
                                     />
                                 </label>
 
-                                <Button type="submit" variant="outline" className="rounded-xl border-orange-300 text-orange-700 hover:bg-orange-50">
+                                <Button
+                                    type="submit"
+                                    variant="outline"
+                                    size="lg"
+                                    className="border-primary/40 text-primary hover:bg-accent"
+                                >
                                     <LockKeyhole className="h-4 w-4" />
-                                    Submit Blind Count &amp; Close
+                                    <span>Submit Blind Count &amp; Close</span>
                                 </Button>
                             </form>
                         )}
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-2xl">
-                    <CardHeader>
+                <Card>
+                    <CardHeader className="border-b border-border/60 bg-[var(--surface-inset)]/60">
                         <CardTitle>Shift Reconciliation History</CardTitle>
                         <CardDescription>
                             Variances outside branch tolerance require Manager PIN sign-off.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-3">
+                    <CardContent className="space-y-3 p-5 sm:p-6">
                         {shifts.length === 0 ? (
-                            <p className="py-6 text-center text-sm text-muted-foreground">No shift records found.</p>
+                            <p className="py-8 text-center text-sm text-muted-foreground">
+                                No shift records found.
+                            </p>
                         ) : (
                             shifts.map((shift) => (
                                 <div
                                     key={shift.id}
-                                    className="rounded-xl border border-border bg-muted/25 p-4 text-xs space-y-2.5"
+                                    className="space-y-3 rounded-2xl border border-border bg-[var(--surface-inset)] p-4 text-xs"
                                 >
                                     <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2 font-semibold text-sm">
+                                        <div className="flex items-center gap-2.5 text-sm font-semibold">
                                             <span>{shift.user_name ?? 'Cashier'}</span>
-                                            <Badge
-                                                variant={
+                                            <StatusPill
+                                                tone={
                                                     shift.state === 'open'
                                                         ? 'success'
                                                         : shift.state === 'variance_flagged'
-                                                          ? 'destructive'
-                                                          : 'outline'
+                                                          ? 'danger'
+                                                          : 'neutral'
                                                 }
-                                            >
-                                                {shift.state}
-                                            </Badge>
+                                                pulse={shift.state === 'open' || shift.state === 'variance_flagged'}
+                                                label={shift.state.replace('_', ' ')}
+                                            />
                                         </div>
-                                        <span className="font-mono text-muted-foreground">
+                                        <span className="font-mono text-muted-foreground tabular-nums">
                                             Opening {formatCents(shift.opening_cash_cents)} · Expected{' '}
                                             {formatCents(shift.expected_cash_cents ?? 0)}
                                             {shift.counted_cash_cents !== null &&
@@ -206,16 +246,19 @@ export default function ShiftsPage({ shifts }: ShiftsPageProps) {
                                     </div>
 
                                     {shift.state === 'variance_flagged' && (
-                                        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-rose-200 bg-rose-50/70 p-3">
-                                            <ShieldAlert className="h-4 w-4 text-rose-600 shrink-0" />
+                                        <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-rose-500/25 bg-rose-500/8 p-3">
+                                            <ShieldAlert className="h-4 w-4 shrink-0 text-rose-600" />
                                             <input
                                                 type="text"
                                                 placeholder="Resolution note"
                                                 value={noteInput[shift.id] ?? ''}
                                                 onChange={(e) =>
-                                                    setNoteInput((prev) => ({ ...prev, [shift.id]: e.target.value }))
+                                                    setNoteInput((prev) => ({
+                                                        ...prev,
+                                                        [shift.id]: e.target.value,
+                                                    }))
                                                 }
-                                                className="flex-1 rounded-lg border border-input bg-white px-2.5 py-1 text-xs"
+                                                className="h-9 min-w-[160px] flex-1 rounded-xl border border-input bg-card px-3 text-xs focus:border-primary focus:outline-none"
                                             />
                                             <input
                                                 type="password"
@@ -224,9 +267,12 @@ export default function ShiftsPage({ shifts }: ShiftsPageProps) {
                                                 placeholder="Manager PIN"
                                                 value={pinInput[shift.id] ?? ''}
                                                 onChange={(e) =>
-                                                    setPinInput((prev) => ({ ...prev, [shift.id]: e.target.value }))
+                                                    setPinInput((prev) => ({
+                                                        ...prev,
+                                                        [shift.id]: e.target.value,
+                                                    }))
                                                 }
-                                                className="w-28 rounded-lg border border-input bg-white px-2.5 py-1 text-center font-mono text-xs"
+                                                className="h-9 w-28 rounded-xl border border-input bg-card px-3 text-center font-mono text-xs tracking-widest focus:border-primary focus:outline-none"
                                             />
                                             <Button
                                                 type="button"

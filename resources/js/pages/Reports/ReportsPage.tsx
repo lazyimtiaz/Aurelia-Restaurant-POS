@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Activity, AlertOctagon, Building2, DollarSign, Receipt, ShieldCheck, TrendingUp } from 'lucide-react';
-import { PosAppLayout } from '@/layouts/PosAppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { StatCard } from '@/design-system';
+import { PosAppLayout } from '@/layouts/PosAppLayout';
 import { formatBps, formatCents } from '@/lib/money';
 import { AuditTrailTable } from '@/modules/executive/AuditTrailTable';
 import { BranchComparisonCards } from '@/modules/executive/BranchComparisonCards';
@@ -56,13 +56,13 @@ export default function ReportsPage({
     return (
         <PosAppLayout
             title="Financial Reports & Audit Trail"
-            subtitle="P&L metrics, theoretical recipe COGS, cash variance, and security logs."
+            subtitle="P&L metrics, theoretical recipe COGS, cash variance, and immutable governance logs."
         >
             <Head title="Reports — Aurelia POS" />
 
             <div className="space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3.5">
-                    <div className="text-xs font-semibold text-muted-foreground">
+                <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-bistro-card lg:flex-row lg:items-center lg:justify-between">
+                    <div className="ds-caption font-semibold text-foreground">
                         {filters.branchId === null
                             ? 'Scope: All Branches (Consolidated)'
                             : `Scope: ${auth?.activeBranch.name ?? 'Active Branch'}`}
@@ -77,7 +77,7 @@ export default function ReportsPage({
                                     const val = e.target.value;
                                     applyScope(val === 'all' ? null : Number(val));
                                 }}
-                                className="rounded-xl border border-input bg-background px-3 py-1.5 text-xs font-medium"
+                                className="h-9 rounded-xl border border-input bg-[var(--surface-inset)] px-3 text-xs font-medium text-foreground focus:border-primary focus:outline-none"
                             >
                                 <option value="all">All Branches (Consolidated)</option>
                                 {(auth?.branches ?? []).map((b) => (
@@ -96,7 +96,7 @@ export default function ReportsPage({
                                 setDateFrom(e.target.value);
                                 applyScope(filters.branchId, e.target.value, dateTo);
                             }}
-                            className="rounded-xl border border-input bg-background px-2.5 py-1.5 text-xs"
+                            className="h-9 rounded-xl border border-input bg-[var(--surface-inset)] px-2.5 text-xs focus:border-primary focus:outline-none"
                         />
 
                         <input
@@ -107,7 +107,7 @@ export default function ReportsPage({
                                 setDateTo(e.target.value);
                                 applyScope(filters.branchId, dateFrom, e.target.value);
                             }}
-                            className="rounded-xl border border-input bg-background px-2.5 py-1.5 text-xs"
+                            className="h-9 rounded-xl border border-input bg-[var(--surface-inset)] px-2.5 text-xs focus:border-primary focus:outline-none"
                         />
 
                         {(dateFrom || dateTo || (canSwitch && filters.branchId !== null)) && (
@@ -127,78 +127,52 @@ export default function ReportsPage({
                     </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <Card className="rounded-2xl">
-                        <CardHeader className="pb-1">
-                            <CardTitle className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase">
-                                <span>Net Revenue</span>
-                                <DollarSign className="h-4 w-4 text-emerald-600" />
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="font-mono text-2xl font-bold">{formatCents(metrics.totalRevenueCents)}</div>
-                            <p className="mt-1 text-xs text-muted-foreground">{metrics.totalOrdersCount} paid orders</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="rounded-2xl">
-                        <CardHeader className="pb-1">
-                            <CardTitle className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase">
-                                <span>Average Order Value</span>
-                                <Receipt className="h-4 w-4 text-sky-600" />
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="font-mono text-2xl font-bold">{formatCents(metrics.averageOrderValueCents)}</div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="rounded-2xl">
-                        <CardHeader className="pb-1">
-                            <CardTitle className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase">
-                                <span>Food Cost (COGS)</span>
-                                <TrendingUp className="h-4 w-4 text-primary" />
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="font-mono text-2xl font-bold">{formatBps(metrics.cogsPercentBps)}</div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                                {formatCents(metrics.totalCogsCents)} · Wastage {formatCents(metrics.totalWastageCents)}
-                            </p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="rounded-2xl">
-                        <CardHeader className="pb-1">
-                            <CardTitle className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase">
-                                <span>Voids &amp; Variance</span>
-                                <AlertOctagon className="h-4 w-4 text-rose-600" />
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="font-mono text-2xl font-bold">{formatCents(metrics.totalVoidsCents)}</div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                                Cash Variance: {formatCents(metrics.netCashVarianceCents)}
-                            </p>
-                        </CardContent>
-                    </Card>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <StatCard
+                        label="Net Revenue"
+                        value={formatCents(metrics.totalRevenueCents)}
+                        icon={<DollarSign className="h-4.5 w-4.5" />}
+                        tone="emerald"
+                        subtitle={`${metrics.totalOrdersCount} paid orders`}
+                    />
+                    <StatCard
+                        label="Average Order Value"
+                        value={formatCents(metrics.averageOrderValueCents)}
+                        icon={<Receipt className="h-4.5 w-4.5" />}
+                        tone="sky"
+                        subtitle="Across settled checks"
+                    />
+                    <StatCard
+                        label="Food Cost (COGS)"
+                        value={formatBps(metrics.cogsPercentBps)}
+                        icon={<TrendingUp className="h-4.5 w-4.5" />}
+                        tone="orange"
+                        subtitle={`${formatCents(metrics.totalCogsCents)} · Wastage ${formatCents(metrics.totalWastageCents)}`}
+                    />
+                    <StatCard
+                        label="Voids & Variance"
+                        value={formatCents(metrics.totalVoidsCents)}
+                        icon={<AlertOctagon className="h-4.5 w-4.5" />}
+                        tone="rose"
+                        subtitle={`Cash Variance ${formatCents(metrics.netCashVarianceCents)}`}
+                    />
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
                     <TabsList>
                         <TabsTrigger value="overview">
                             <Activity className="h-4 w-4" />
-                            P&amp;L &amp; Peak Hours
+                            <span>P&amp;L &amp; Peak Hours</span>
                         </TabsTrigger>
                         {canSwitch && (
                             <TabsTrigger value="branches">
                                 <Building2 className="h-4 w-4" />
-                                Branch Comparison
+                                <span>Branch Comparison</span>
                             </TabsTrigger>
                         )}
                         <TabsTrigger value="audit">
                             <ShieldCheck className="h-4 w-4" />
-                            Audit Trail
+                            <span>Audit Trail</span>
                             <Badge variant="outline" className="ml-1 text-[10px]">
                                 {auditLogs.length}
                             </Badge>

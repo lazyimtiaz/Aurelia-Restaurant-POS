@@ -1,8 +1,8 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import { AlertTriangle, Boxes, DollarSign } from 'lucide-react';
-import { PosAppLayout } from '@/layouts/PosAppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatCard } from '@/design-system';
 import { useBranchEcho } from '@/hooks/useBranchEcho';
+import { PosAppLayout } from '@/layouts/PosAppLayout';
 import { formatCents } from '@/lib/money';
 import { InventoryStockDrawer } from '@/modules/executive/InventoryStockDrawer';
 import type { BranchInventoryLedgerData } from '@/types/executive';
@@ -31,45 +31,35 @@ export default function InventoryPage({ inventory }: InventoryPageProps) {
         >
             <Head title="Inventory — Aurelia POS" />
 
-            <div className="space-y-5">
+            <div className="space-y-6">
                 <div className="grid gap-4 sm:grid-cols-3">
-                    <Card className="rounded-2xl">
-                        <CardHeader className="pb-1">
-                            <CardTitle className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase">
-                                <span>Tracked Ingredients</span>
-                                <Boxes className="h-4 w-4 text-primary" />
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="font-mono text-2xl font-bold">{inventory.stocks.length}</div>
-                        </CardContent>
-                    </Card>
+                    <StatCard
+                        label="Tracked Ingredients"
+                        value={inventory.stocks.length}
+                        icon={<Boxes className="h-4.5 w-4.5" />}
+                        tone="orange"
+                        subtitle="Active recipe bill-of-materials"
+                    />
 
-                    <Card className="rounded-2xl">
-                        <CardHeader className="pb-1">
-                            <CardTitle className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase">
-                                <span>Low / Depleted Alerts</span>
-                                <AlertTriangle className="h-4 w-4 text-rose-600" />
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className={`font-mono text-2xl font-bold ${lowStockCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                {lowStockCount}
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <StatCard
+                        label="Low / Depleted Alerts"
+                        value={lowStockCount}
+                        icon={<AlertTriangle className="h-4.5 w-4.5" />}
+                        tone={lowStockCount > 0 ? 'rose' : 'emerald'}
+                        subtitle={
+                            lowStockCount > 0
+                                ? 'Auto-86 triggered on linked items'
+                                : 'All ingredients above threshold'
+                        }
+                    />
 
-                    <Card className="rounded-2xl">
-                        <CardHeader className="pb-1">
-                            <CardTitle className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase">
-                                <span>Branch Stock Valuation</span>
-                                <DollarSign className="h-4 w-4 text-emerald-600" />
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="font-mono text-2xl font-bold">{formatCents(totalValuationCents)}</div>
-                        </CardContent>
-                    </Card>
+                    <StatCard
+                        label="Branch Stock Valuation"
+                        value={formatCents(totalValuationCents)}
+                        icon={<DollarSign className="h-4.5 w-4.5" />}
+                        tone="emerald"
+                        subtitle="Calculated from weighted unit cost"
+                    />
                 </div>
 
                 <InventoryStockDrawer

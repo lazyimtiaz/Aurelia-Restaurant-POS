@@ -1,8 +1,9 @@
 import { motion } from 'motion/react';
 import { Building2, TrendingUp } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatusPill } from '@/design-system';
 import { formatBps, formatCents } from '@/lib/money';
+import { cn } from '@/lib/utils';
 import type { BranchComparisonRowData } from '@/types/executive';
 
 interface BranchComparisonCardsProps {
@@ -19,36 +20,39 @@ export function BranchComparisonCards({
     const maxRevenue = Math.max(1, ...branches.map((b) => b.revenueCents));
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-6">
             <Card>
-                <CardHeader>
+                <CardHeader className="border-b border-border/60 bg-[var(--surface-inset)]/60">
                     <CardTitle className="flex items-center gap-2">
                         <TrendingUp className="h-4 w-4 text-primary" />
-                        Cross-Branch Revenue &amp; Food Cost Comparison
+                        <span>Cross-Branch Revenue &amp; Food Cost Comparison</span>
                     </CardTitle>
                     <CardDescription>
-                        Click any branch card to scope P&amp;L KPIs, hourly throughput, and inventory ledger to that location.
+                        Tap any branch card below to scope P&amp;L metrics and audit records to that location.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-4 p-5 sm:p-6">
                     {branches.map((branch) => {
-                        const barWidthPct = Math.max(4, Math.round((branch.revenueCents / maxRevenue) * 100));
+                        const barWidthPct = Math.max(
+                            4,
+                            Math.round((branch.revenueCents / maxRevenue) * 100),
+                        );
                         return (
-                            <div key={branch.branchId} className="space-y-1">
-                                <div className="flex items-center justify-between text-xs">
-                                    <span className="font-semibold">
+                            <div key={branch.branchId} className="space-y-1.5">
+                                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                    <span className="font-semibold text-foreground">
                                         {branch.branchCode} · {branch.branchName}
                                     </span>
-                                    <span className="font-mono text-muted-foreground">
+                                    <span className="font-mono text-muted-foreground tabular-nums">
                                         {formatCents(branch.revenueCents)} · COGS {formatBps(branch.cogsPercentBps)}
                                     </span>
                                 </div>
-                                <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                                <div className="h-3 w-full overflow-hidden rounded-full bg-[var(--surface-inset)] ring-1 ring-border/70">
                                     <motion.div
                                         initial={{ width: 0 }}
                                         animate={{ width: `${barWidthPct}%` }}
-                                        transition={{ duration: 0.4 }}
-                                        className="h-full rounded-full bg-amber-500"
+                                        transition={{ duration: 0.45, ease: 'easeOut' }}
+                                        className="h-full rounded-full bg-gradient-to-r from-[#EA580C] to-[#F59E0B]"
                                     />
                                 </div>
                             </div>
@@ -71,46 +75,62 @@ export function BranchComparisonCards({
                             transition={{ delay: idx * 0.05 }}
                         >
                             <Card
+                                variant="interactive"
                                 onClick={() => onSelectBranch(isSelected ? null : branch.branchId)}
-                                className={`cursor-pointer transition-all hover:border-amber-500/60 ${
-                                    isSelected ? 'ring-2 ring-amber-500 border-amber-500' : ''
-                                }`}
+                                className={cn(
+                                    'cursor-pointer',
+                                    isSelected && 'border-primary ring-2 ring-primary/25',
+                                )}
                             >
-                                <CardHeader className="pb-2">
-                                    <div className="flex items-center justify-between">
-                                        <CardTitle className="flex items-center gap-2 text-base">
-                                            <Building2 className="h-4 w-4 text-amber-600" />
-                                            {branch.branchName}
+                                <CardHeader className="pb-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <CardTitle className="flex items-center gap-2 truncate">
+                                            <Building2 className="h-4 w-4 shrink-0 text-primary" />
+                                            <span className="truncate">{branch.branchName}</span>
                                         </CardTitle>
-                                        <Badge variant={isSelected ? 'warning' : 'outline'}>{branch.branchCode}</Badge>
+                                        <StatusPill
+                                            tone={isSelected ? 'brand' : 'neutral'}
+                                            dot={false}
+                                            label={branch.branchCode}
+                                        />
                                     </div>
                                     <CardDescription>{branch.ordersCount} paid orders</CardDescription>
                                 </CardHeader>
-                                <CardContent className="space-y-2 text-sm">
+                                <CardContent className="space-y-2.5 text-sm">
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Net Revenue</span>
-                                        <span className="font-mono font-bold">{formatCents(branch.revenueCents)}</span>
+                                        <span className="ds-num-sm">{formatCents(branch.revenueCents)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Avg Order Value</span>
-                                        <span className="font-mono">{formatCents(branch.averageOrderValueCents)}</span>
+                                        <span className="font-mono tabular-nums">
+                                            {formatCents(branch.averageOrderValueCents)}
+                                        </span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Theoretical COGS</span>
-                                        <span className={`font-mono font-semibold ${highCogs ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                        <span
+                                            className={cn(
+                                                'font-mono font-semibold tabular-nums',
+                                                highCogs ? 'text-rose-600' : 'text-emerald-600',
+                                            )}
+                                        >
                                             {formatCents(branch.cogsCents)} ({formatBps(branch.cogsPercentBps)})
                                         </span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Void Leakage</span>
-                                        <span className="font-mono text-amber-700">{formatCents(branch.voidsCents)}</span>
+                                        <span className="font-mono text-amber-700 tabular-nums">
+                                            {formatCents(branch.voidsCents)}
+                                        </span>
                                     </div>
-                                    <div className="flex justify-between border-t border-border pt-2">
+                                    <div className="flex justify-between border-t border-border pt-2.5">
                                         <span className="text-muted-foreground">Net Cash Variance</span>
                                         <span
-                                            className={`font-mono font-semibold ${
-                                                hasNegativeVariance ? 'text-rose-600' : 'text-foreground'
-                                            }`}
+                                            className={cn(
+                                                'font-mono font-semibold tabular-nums',
+                                                hasNegativeVariance ? 'text-rose-600' : 'text-foreground',
+                                            )}
                                         >
                                             {formatCents(branch.cashVarianceCents)}
                                         </span>
