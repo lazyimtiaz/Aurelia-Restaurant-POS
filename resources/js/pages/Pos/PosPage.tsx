@@ -25,7 +25,6 @@ import { ManagerPinModal } from '@/modules/pos/ManagerPinModal';
 import { ModifierSheet } from '@/modules/pos/ModifierSheet';
 import { NewOrderModal } from '@/modules/pos/NewOrderModal';
 import { TableTransferDialog } from '@/modules/pos/TableTransferDialog';
-import type { VoidReasonValue } from '@/types/billing';
 import type { ActiveOrderData, FloorZoneData, OrderItemData } from '@/types/pos';
 import type { MenuCategoryData, MenuItemData, PosSharedProps } from '@/types/pos-app';
 
@@ -152,7 +151,7 @@ export default function PosPage({
         router.post(`/pos/orders/${activeOrder.id}/discount`, { discount_bps: bps }, { preserveScroll: true });
     };
 
-    const handlePinConfirm = (pin: string, reason?: VoidReasonValue) => {
+    const handlePinConfirm = ({ pin, reason }: { pin: string; reason?: string }) => {
         if (!pinModalState || !activeOrder) {
             return;
         }
@@ -653,7 +652,7 @@ export default function PosPage({
                 requireVoidReason={pinModalState?.type === 'void'}
                 errorMessage={pinError}
                 onClose={() => setPinModalState(null)}
-                onConfirm={handlePinConfirm}
+                onSubmit={handlePinConfirm}
             />
         </PosAppLayout>
     );

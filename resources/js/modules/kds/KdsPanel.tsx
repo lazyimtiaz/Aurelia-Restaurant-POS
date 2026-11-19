@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useBranchEcho } from '@/hooks/useBranchEcho';
 import { TicketCard } from '@/modules/kds/TicketCard';
 import { useKdsAudioAlert } from '@/modules/kds/useKdsAudioAlert';
-import type { SharedPageProps } from '@/types/evaluator';
+import type { PosSharedProps } from '@/types/pos-app';
 import type { KdsTicketData } from '@/types/pos';
 
 interface KdsPanelProps {
@@ -22,11 +22,12 @@ export function KdsPanel({
     initialStation = null,
     compact = false,
 }: KdsPanelProps) {
-    const { evaluator } = usePage<SharedPageProps>().props;
+    const { auth } = usePage<PosSharedProps>().props;
+    const branchId = auth?.activeBranch.id ?? 0;
     const [stationFilter, setStationFilter] = useState<string | null>(initialStation);
     const { muted, setMuted, playChime } = useKdsAudioAlert();
 
-    useBranchEcho(evaluator.activeBranch.id, ['kds'], (eventName) => {
+    useBranchEcho(branchId, ['kds'], (eventName) => {
         if (eventName === 'OrderRoundFired') {
             playChime('ticket');
         }
@@ -45,14 +46,14 @@ export function KdsPanel({
 
     const handleBumpItem = (itemId: number, targetState: 'in_prep' | 'ready') => {
         router.post(
-            `/kds/items/${itemId}/bump`,
+            `/kitchen/items/${itemId}/bump`,
             { target_state: targetState },
             { preserveScroll: true },
         );
     };
 
     const handleServeTicket = (ticketId: number) => {
-        router.post(`/kds/tickets/${ticketId}/serve`, {}, { preserveScroll: true });
+        router.post(`/kitchen/tickets/${ticketId}/serve`, {}, { preserveScroll: true });
     };
 
     return (

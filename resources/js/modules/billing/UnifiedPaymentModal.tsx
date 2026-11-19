@@ -438,7 +438,7 @@ export function UnifiedPaymentModal({
                                             [
                                                 ['cash', 'Cash', Banknote],
                                                 ['card', 'Card Terminal', CreditCard],
-                                                ['mobile_qr', 'Mobile QR', QrCode],
+                                                ['qr', 'Mobile QR', QrCode],
                                             ] as const
                                         ).map(([method, label, Icon]) => (
                                             <button
@@ -597,7 +597,7 @@ export function UnifiedPaymentModal({
                                     </div>
                                 )}
 
-                                {tenderMethod === 'mobile_qr' && (
+                                {tenderMethod === 'qr' && (
                                     <div className="space-y-4 rounded-2xl border border-border bg-muted/25 p-5 text-center">
                                         <QrCode className="mx-auto h-12 w-12 text-primary" />
                                         <div>
